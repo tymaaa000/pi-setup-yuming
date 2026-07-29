@@ -1,16 +1,32 @@
 {
-  "lastChangelogVersion": "0.81.1",
-  "theme": "dark",
+  "lastChangelogVersion": "0.82.1",
+  "theme": "tokyo-night",
   "defaultProvider": "deepseek",
   "defaultModel": "deepseek-v4-pro",
+  "defaultThinkingLevel": "high",
   "packages": [
     "npm:@ff-labs/pi-fff",
     "npm:@mammothb/pi-websearch",
     "npm:@gotgenes/pi-subagents",
-    "https://github.com/hugohe3/ppt-master"
+    "https://github.com/hugohe3/ppt-master",
+    "npm:@narumitw/pi-chrome-devtools",
+    "..\\..\\..\\..\\Linux\\Code\\Linux_Drivers",
+    "npm:@narumitw/pi-lsp"
   ],
-  "defaultThinkingLevel": "max",
+  "enableSkillCommands": true,
   "terminal": {
     "showTerminalProgress": true
-  }
+  },
+  "externalEditor": "C:/Users/14681/npp.bat",
+  "enabledModels": [
+    "deepseek/deepseek-v4-pro",
+    "deepseek/deepseek-v4-flash",
+    "moonshotai-cn/kimi-k2-0711-preview",
+    "moonshotai-cn/kimi-k3",
+    "moonshotai-cn/kimi-k2.7-code-highspeed",
+    "moonshotai-cn/kimi-k2.7-code",
+    "moonshotai-cn/kimi-k2.6",
+    "moonshotai-cn/kimi-k2.5",
+    "xai/grok-4.5"
+  ]
 }
