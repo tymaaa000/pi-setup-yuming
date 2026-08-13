@@ -1,0 +1,22 @@
+{
+  "commit": {
+    "model": "deepseek/deepseek-v4-flash",
+    "thinking": "high"
+  },
+  "explore": {
+    "model": "deepseek/deepseek-v4-flash",
+    "thinking": "max"
+  },
+  "review": {
+    "model": "deepseek/deepseek-v4-pro",
+    "thinking": "high"
+  },
+  "websearch": {
+    "model": "deepseek/deepseek-v4-flash",
+    "thinking": "max"
+  },
+  "general-purpose": {
+    "model": "deepseek/deepseek-v4-flash",
+    "thinking": "max"
+  }
+}
