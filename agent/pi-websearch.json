@@ -2,7 +2,8 @@
   "provider": "exa-mcp",
   "exaMcp": {
     "url": "https://mcp.exa.ai/mcp",
-    "tool": "web_search_exa"
+    "tool": "web_search_exa",
+    "apiKey": "3ac0194c-1baa-4f42-8bcd-87bb74c1ad7b"
   },
   "timeoutMs": 25000,
   "defaults": {
