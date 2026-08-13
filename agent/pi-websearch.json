@@ -1,9 +1,9 @@
 {
-  "provider": "exa-mcp",
+  "provider": "searxng",
   "exaMcp": {
     "url": "https://mcp.exa.ai/mcp",
     "tool": "web_search_exa",
-    "apiKey": "3ac0194c-1baa-4f42-8bcd-87bb74c1ad7b"
+    "apiKey": ""
   },
   "timeoutMs": 25000,
   "defaults": {
@@ -11,5 +11,10 @@
     "type": "auto",
     "livecrawl": "fallback",
     "contextMaxCharacters": 10000
+  },
+  "searxng": {
+    "url": "http://localhost:8888",
+    "safesearch": 0,
+    "script": "D:/Linux/searxng-manage.sh"
   }
 }
