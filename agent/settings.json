@@ -1,5 +1,5 @@
 {
-  "lastChangelogVersion": "0.82.1",
+  "lastChangelogVersion": "0.84.2",
   "theme": "tokyo-night",
   "defaultProvider": "deepseek",
   "defaultModel": "deepseek-v4-pro",
@@ -19,14 +19,14 @@
   },
   "externalEditor": "C:/Users/14681/npp.bat",
   "enabledModels": [
-    "deepseek/deepseek-v4-pro",
-    "deepseek/deepseek-v4-flash",
-    "moonshotai-cn/kimi-k2-0711-preview",
-    "moonshotai-cn/kimi-k3",
-    "moonshotai-cn/kimi-k2.7-code-highspeed",
-    "moonshotai-cn/kimi-k2.7-code",
-    "moonshotai-cn/kimi-k2.6",
-    "moonshotai-cn/kimi-k2.5",
-    "xai/grok-4.5"
+    "xiaomi-mimo/mimo-v2.5-pro",
+    "xiaomi-mimo/mimo-v2.5",
+    "volces-ark/deepseek-v4-pro",
+    "volces-ark/deepseek-v4-flash",
+    "volces-ark/kimi-k2.7-code",
+    "volces-ark/glm-5-2",
+    "volces-ark/doubao-seed-2-0-lite",
+    "volces-ark/doubao-seed-2-1-turbo",
+    "volces-ark/minimax-m3"
   ]
 }
