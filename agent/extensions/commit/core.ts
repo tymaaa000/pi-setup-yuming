@@ -85,11 +85,15 @@ export function runPiGenerate(opts: {
 }): Promise<GenerateResult> {
 	const { model, thinking, task, cwd, timeoutMs = GENERATION_TIMEOUT_MS } = opts;
 	return new Promise((resolve) => {
-		const piCommand = process.platform === "win32" ? "pi.cmd" : "pi";
-		const child = spawn(piCommand, buildPiArgs(model, thinking), {
+		const isWindows = process.platform === "win32";
+		const piArgs = buildPiArgs(model, thinking);
+		const piCommand = isWindows ? (process.env.ComSpec ?? "cmd.exe") : "pi";
+		const commandArgs = isWindows
+			? ["/d", "/s", "/c", "pi.cmd", ...piArgs]
+			: piArgs;
+		const child = spawn(piCommand, commandArgs, {
 			cwd,
 			stdio: ["pipe", "pipe", "pipe"],
-			shell: process.platform === "win32",
 		});
 		let stdout = "";
 		let stderr = "";
