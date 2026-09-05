@@ -8,23 +8,28 @@
  *     current branch, newest on top. Each reply = all assistant messages
  *     between two role:"user" messages (a full agent run). Pick one -> open
  *     `nvim -R` on a temp .md file containing that reply's text + thinking.
+ *     Pass `--thinking` to make inclusion explicit; Alt+P omits thinking.
+ *   - Alt+P opens the latest complete reply directly, without thinking blocks.
  *
- * Only text and thinking blocks are included. Thinking is rendered with a
- * `> ` quote prefix. Other block types (toolCall / images) are omitted.
+ * Text and thinking blocks are included by default and thinking is rendered
+ * with a `> ` quote prefix. Other block types (toolCall / images) are omitted.
  *
  * Pure read-only preview: nothing is written back to the session. The temp
  * file is deleted when nvim exits. User may still `:w!` to another path; only
  * the original temp path is removed.
  *
- * Usage: /preview
+ * Usage: /preview [--thinking]
  */
 
-import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type {
+  ExtensionAPI,
+  ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
+import { runTerminalApp } from "./terminal.ts";
 
 // nvim invocation. Hardcoded "nvim"; resolved via PATH.
 // -R  read-only (prevents accidental :w to the original path)
@@ -34,8 +39,27 @@ const NVIM_ARGS = ["-R"];
 /** Max chars of the reply snippet shown in the selector. */
 const SNIPPET_MAX = 50;
 
+const USAGE = "/preview [--thinking]";
+
+const HELP_TEXT = [
+  USAGE,
+  "",
+  "  (无参数)    选择一条过往回复，用 nvim -R 只读预览文本和 thinking",
+  "  --thinking  明确包含 thinking blocks（以 Markdown 引用形式显示）",
+  "",
+  "快捷键：Alt+P 直接打开最新回复的只读预览（不包含 thinking blocks）。",
+].join("\n");
+
 /** Minimal entry shape we read from a session branch. */
-type BranchEntry = { type?: string; message?: { role?: string; content?: unknown } };
+type BranchEntry = {
+  type?: string;
+  message?: { role?: string; content?: unknown };
+};
+
+type ParsedPreviewArgs = {
+  includeThinking: boolean;
+  showHelp: boolean;
+};
 
 /** Truncate to maxLen chars, appending an ellipsis if cut. */
 function truncate(text: string, maxLen: number): string {
@@ -43,8 +67,32 @@ function truncate(text: string, maxLen: number): string {
   return `${text.slice(0, maxLen)}…`;
 }
 
+function parsePreviewArgs(
+  args: string | undefined,
+): ParsedPreviewArgs | { error: string } {
+  const raw = args?.trim() ?? "";
+  if (raw === "") return { includeThinking: true, showHelp: false };
+
+  let includeThinking = true;
+  let showHelp = false;
+  for (const token of raw.split(/\s+/)) {
+    if (token === "--thinking") {
+      includeThinking = true;
+    } else if (token === "help" || token === "--help" || token === "-h") {
+      showHelp = true;
+    } else {
+      return { error: `未知参数 "${token}"` };
+    }
+  }
+
+  return { includeThinking, showHelp };
+}
+
 /** Extract text from a content block array. Returns joined markdown. */
-function renderAssistantContent(content: unknown): string {
+function renderAssistantContent(
+  content: unknown,
+  includeThinking: boolean,
+): string {
   if (!Array.isArray(content)) return "";
   const parts: string[] = [];
   for (const block of content) {
@@ -52,7 +100,11 @@ function renderAssistantContent(content: unknown): string {
     const b = block as { type?: string; text?: string; thinking?: string };
     if (b.type === "text" && typeof b.text === "string") {
       if (b.text.length > 0) parts.push(b.text);
-    } else if (b.type === "thinking" && typeof b.thinking === "string") {
+    } else if (
+      includeThinking &&
+      b.type === "thinking" &&
+      typeof b.thinking === "string"
+    ) {
       if (b.thinking.length > 0) {
         // blockquote-prefix every line
         parts.push(
@@ -103,7 +155,11 @@ function openingLineOfRun(record: BranchEntry[]): string {
     for (const block of content) {
       if (block == null || typeof block !== "object") continue;
       const b = block as { type?: string; text?: string };
-      if (b.type === "text" && typeof b.text === "string" && b.text.length > 0) {
+      if (
+        b.type === "text" &&
+        typeof b.text === "string" &&
+        b.text.length > 0
+      ) {
         const line = b.text
           .split("\n")
           .map((l) => l.trim())
@@ -115,111 +171,127 @@ function openingLineOfRun(record: BranchEntry[]): string {
   return "";
 }
 
-/** Render a record's body: text + thinking of all its assistant messages, joined by blank lines. */
-function renderRecordBody(record: BranchEntry[]): string {
+/** Render a record's body: text, plus optional thinking, joined by blank lines. */
+function renderRecordBody(
+  record: BranchEntry[],
+  includeThinking: boolean,
+): string {
   const blocks: string[] = [];
   for (const e of record) {
-    const rendered = renderAssistantContent(e.message?.content);
+    const rendered = renderAssistantContent(
+      e.message?.content,
+      includeThinking,
+    );
     if (rendered.length > 0) blocks.push(rendered);
   }
   return blocks.join("\n\n");
 }
 
+async function openPreview(
+  ctx: ExtensionContext,
+  options: { includeThinking: boolean; latestOnly: boolean },
+): Promise<void> {
+  if (!ctx.isIdle()) {
+    ctx.ui.notify("回复尚未结束，请稍后再试", "info");
+    return;
+  }
+
+  if (ctx.mode !== "tui") {
+    ctx.ui.notify("/preview 需要交互式终端", "error");
+    return;
+  }
+
+  const records = buildRecords(() => ctx.sessionManager.getBranch());
+  if (records.length === 0) {
+    ctx.ui.notify("尚无可预览的回复", "info");
+    return;
+  }
+
+  let record: BranchEntry[] | undefined;
+  if (options.latestOnly) {
+    record = records[records.length - 1];
+  } else {
+    // #1 = oldest ... #N = newest; list newest-first so #N is on top.
+    const labels = records.map((rec, i) => {
+      const snippet = openingLineOfRun(rec);
+      const text = snippet ? truncate(snippet, SNIPPET_MAX) : "(无文本)";
+      return `#${i + 1} · ${text}`;
+    });
+    const ordered = [...labels].reverse();
+
+    const choice = await ctx.ui.select("预览哪条回复：", ordered);
+    if (choice === undefined) return; // cancelled
+
+    const idx = labels.indexOf(choice);
+    if (idx === -1) return;
+    record = records[idx];
+  }
+
+  if (record === undefined) return;
+
+  const body = renderRecordBody(record, options.includeThinking);
+  if (!body.trim()) {
+    ctx.ui.notify("该回复无可预览内容", "info");
+    return;
+  }
+
+  const sessionId = ctx.sessionManager.getSessionId() ?? "session";
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const dir = mkdtempSync(join(tmpdir(), "pi-preview-"));
+  const file = join(dir, `pi-preview-${sessionId}-${stamp}.md`);
+  writeFileSync(file, `${body}\n`, "utf8");
+
+  try {
+    const result = await runTerminalApp(ctx, NVIM_COMMAND, {
+      args: [...NVIM_ARGS, file],
+      clearScreen: true,
+    });
+    if (result.kind === "not-found") {
+      ctx.ui.notify("未找到 nvim，请确认已安装并在 PATH 中", "error");
+      return;
+    }
+    if (result.kind === "launch-error") {
+      ctx.ui.notify("/preview 打开 nvim 失败", "error");
+      return;
+    }
+  } finally {
+    // Best-effort cleanup of the temp file/dir.
+    try {
+      rmSync(dir, { recursive: true, force: true });
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
 export default function (pi: ExtensionAPI) {
   pi.registerCommand("preview", {
-    description: "Preview a past reply in neovim (read-only)",
-    handler: async (_args, ctx) => {
-      if (!ctx.isIdle()) {
-        ctx.ui.notify("回复尚未结束，请稍后再试", "info");
+    description:
+      "Preview a past reply in neovim (read-only). Usage: /preview [--thinking]",
+    handler: async (args, ctx) => {
+      const parsed = parsePreviewArgs(args);
+      if ("error" in parsed) {
+        ctx.ui.notify(`${parsed.error}，用法：${USAGE}`, "error");
+        ctx.ui.notify(HELP_TEXT, "info");
         return;
       }
 
-      if (ctx.mode !== "tui") {
-        ctx.ui.notify("/preview 需要交互式终端", "error");
+      if (parsed.showHelp) {
+        ctx.ui.notify(HELP_TEXT, "info");
         return;
       }
 
-      const records = buildRecords(() => ctx.sessionManager.getBranch());
-      if (records.length === 0) {
-        ctx.ui.notify("尚无可预览的回复", "info");
-        return;
-      }
-
-      // #1 = oldest ... #N = newest; list newest-first so #N is on top.
-      const labels = records.map((rec, i) => {
-        const snippet = openingLineOfRun(rec);
-        const text = snippet ? truncate(snippet, SNIPPET_MAX) : "(无文本)";
-        return `#${i + 1} · ${text}`;
+      await openPreview(ctx, {
+        includeThinking: parsed.includeThinking,
+        latestOnly: false,
       });
-      const ordered = [...labels].reverse();
-
-      const choice = await ctx.ui.select("预览哪条回复：", ordered);
-      if (choice === undefined) return; // cancelled
-
-      const idx = labels.indexOf(choice);
-      if (idx === -1) return;
-      const body = renderRecordBody(records[idx]);
-      if (!body.trim()) {
-        ctx.ui.notify("该回复无可预览内容", "info");
-        return;
-      }
-
-      const sessionId = ctx.sessionManager.getSessionId() ?? "session";
-      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-      const dir = mkdtempSync(join(tmpdir(), "pi-preview-"));
-      const file = join(dir, `pi-preview-${sessionId}-${stamp}.md`);
-      writeFileSync(file, `${body}\n`, "utf8");
-
-      try {
-        await ctx.ui.custom<null>((tui, _theme, _kb, done) => {
-          // Release the terminal for nvim.
-          tui.stop();
-          process.stdout.write("\x1b[2J\x1b[H");
-
-          try {
-            const result = spawnSync(NVIM_COMMAND, [...NVIM_ARGS, file], {
-              stdio: "inherit",
-              env: process.env,
-            });
-            // ENOENT (nvim not on PATH) appears as result.error.
-            const notFound =
-              !!result.error &&
-              (result.error as NodeJS.ErrnoException).code === "ENOENT";
-            if (notFound) done(new nvimNotFound());
-            else done(null);
-          } catch (err) {
-            done(err instanceof Error ? err : new nvimNotFound());
-          }
-
-          // Resume the pi TUI in *all* exit paths before done() unwinds.
-          tui.start();
-          tui.requestRender(true);
-
-          return { render: () => [], invalidate: () => {} };
-        });
-      } catch (err) {
-        if (err instanceof nvimNotFound) {
-          ctx.ui.notify("未找到 nvim，请确认已安装并在 PATH 中", "error");
-        } else {
-          ctx.ui.notify("/preview 打开 nvim 失败", "error");
-        }
-        return;
-      } finally {
-        // Best-effort cleanup of the temp file/dir.
-        try {
-          rmSync(dir, { recursive: true, force: true });
-        } catch {
-          /* ignore */
-        }
-      }
     },
   });
 
-  // Sentinel used to distinguish ENOENT from other errors thrown via done().
-  class nvimNotFound extends Error {
-    constructor() {
-      super("nvim not found");
-      this.name = "NvimNotFound";
-    }
-  }
+  pi.registerShortcut("alt+p", {
+    description: "Open the latest reply preview in neovim (read-only)",
+    handler: async (ctx) => {
+      await openPreview(ctx, { includeThinking: false, latestOnly: true });
+    },
+  });
 }
