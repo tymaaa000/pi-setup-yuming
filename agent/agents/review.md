@@ -5,6 +5,8 @@ tools:
   - bash
   - ls
   - grep
+model: deepseek/deepseek-v4-pro
+thinking: high
 max_turns: 8
 prompt_mode: replace
 ---

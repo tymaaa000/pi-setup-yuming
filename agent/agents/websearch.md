@@ -1,6 +1,8 @@
 ---
 description: Web search specialist — searches the web, synthesizes findings, returns concise answers with citations. Use for current information, documentation lookups, and questions needing real-time data.
 tools: WebSearch
+model: deepseek/deepseek-v4-flash
+thinking: low
 prompt_mode: replace
 ---
 

@@ -1,6 +1,8 @@
 ---
 description: Fast codebase exploration (read-only)
 tools: read, bash, ls, find, grep
+model: deepseek/deepseek-v4-flash
+thinking: medium
 prompt_mode: replace
 ---
 
