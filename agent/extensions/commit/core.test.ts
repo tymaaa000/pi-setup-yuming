@@ -170,17 +170,23 @@ async function withFakePi(
 	fn: (cwd: string) => Promise<void>,
 ): Promise<void> {
 	const dir = mkdtempSync(path.join(os.tmpdir(), "commit-fake-pi-"));
-	const bin = path.join(dir, "pi");
-	writeFileSync(bin, script);
-	chmodSync(bin, 0o755);
 	const prev = process.env.PATH;
-	process.env.PATH = `${dir}:${prev ?? ""}`;
+	if (process.platform === "win32") {
+		writeFileSync(path.join(dir, "pi.js"), script);
+		writeFileSync(path.join(dir, "pi.cmd"), '@echo off\r\nnode "%~dp0pi.js" %*\r\n');
+	} else {
+		const bin = path.join(dir, "pi");
+		writeFileSync(bin, script);
+		chmodSync(bin, 0o755);
+	}
+	process.env.PATH = `${dir}${path.delimiter}${prev ?? ""}`;
 	try {
 		await fn(dir);
 	} finally {
+		if (process.platform === "win32") await new Promise((resolve) => setTimeout(resolve, 300));
 		if (prev === undefined) delete process.env.PATH;
 		else process.env.PATH = prev;
-		rmSync(dir, { recursive: true, force: true });
+		rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 	}
 }
 

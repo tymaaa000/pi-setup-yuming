@@ -6,7 +6,7 @@
  * flow, ui.ts holds the dialogs.
  */
 
-import { execFileSync, spawn } from "node:child_process";
+import { execFile, execFileSync, spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -85,13 +85,16 @@ export function runPiGenerate(opts: {
 }): Promise<GenerateResult> {
 	const { model, thinking, task, cwd, timeoutMs = GENERATION_TIMEOUT_MS } = opts;
 	return new Promise((resolve) => {
-		const child = spawn("pi", buildPiArgs(model, thinking), {
+		const piCommand = process.platform === "win32" ? "pi.cmd" : "pi";
+		const child = spawn(piCommand, buildPiArgs(model, thinking), {
 			cwd,
 			stdio: ["pipe", "pipe", "pipe"],
+			shell: process.platform === "win32",
 		});
 		let stdout = "";
 		let stderr = "";
 		let settled = false;
+		let timedOut = false;
 
 		const settle = (result: GenerateResult) => {
 			if (settled) return;
@@ -101,8 +104,15 @@ export function runPiGenerate(opts: {
 		};
 
 		const timer = setTimeout(() => {
-			child.kill("SIGKILL");
+			timedOut = true;
 			settle({ message: "", error: "生成超时" });
+			if (process.platform === "win32" && child.pid) {
+				execFile("taskkill", ["/pid", String(child.pid), "/t", "/f"], () => {
+					settle({ message: "", error: "生成超时" });
+				});
+			} else {
+				child.kill("SIGKILL");
+			}
 		}, timeoutMs);
 
 		child.stdout.on("data", (chunk: Buffer) => {
@@ -116,6 +126,7 @@ export function runPiGenerate(opts: {
 			settle({ message: "", error: firstLineOf(err) });
 		});
 		child.on("close", (code) => {
+			if (timedOut) return;
 			if (code === 0) {
 				settle({ message: stdout.trim() });
 				return;
