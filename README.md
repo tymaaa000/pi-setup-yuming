@@ -40,9 +40,27 @@ git clone git@github.com:tymaaa000/pi-setup-yuming.git ~/.pi
 
 ## 模型说明
 
-- 当前仅启用 **deepseek 原生模型**（`deepseek-v4-pro / -flash / -flash-vision-exp`）。
-- `xiaomi-mimo`、`volces-ark` 的 key 已过期，保留在 `models.json` 但未启用。
-- ⚠️ `models.json` 含 **apiKey**，已被 `.gitignore` 排除，**不要提交**。
+当前仅 **deepseek 原生模型**可用于。`enabledModels` 已精简为以下 3 个（已逐一实测）：
+
+| 模型 | 状态 | 认证来源 |
+|------|------|----------|
+| `deepseek/deepseek-v4-pro` | ✅ 可用 | `auth.json` (deepseek) |
+| `deepseek/deepseek-v4-flash` | ✅ 可用 | `auth.json` (deepseek) |
+| `deepseek/deepseek-v4-flash-vision-exp` | ✅ 可用（默认） | `auth.json` (deepseek) |
+| `xiaomi-mimo/*`（2 个） | ❌ 已过期 | models.json key 401 |
+| `volces-ark/*`（9 个） | ❌ 已过期 | models.json key 401 |
+
+> ⚠️ `volces-ark` 走的是 `anthropic-messages` 格式，但 key 已失效；`xiaomi-mimo` 为 `openai-completions`，key 同样失效。
+> ⚠️ `models.json` 含 **apiKey**，已被 `.gitignore` 排除，**不要提交**。
+
+### 验证方法（复测可用性）
+
+```bash
+python3 -c "import json,urllib.request as u;d=json.load(open('models.json'));\
+[print(p+'/'+m['id'], '->', 'PASS' if (lambda: __import__('urllib.request',fromlist=['urlopen']).urlopen(u.Request(d['providers'][p]['baseUrl']+'/chat/completions',data=json.dumps({'model':m['id'],'messages':[{'role':'user','content':'hi'}],'max_tokens':16}).encode(),method='POST',headers={'Authorization':'Bearer '+d['providers'][p]['apiKey'],'Content-Type':'application/json'}),timeout=15).status==200)() else 'FAIL') for p in d['providers'] for m in d['providers'][p]['models']]"
+```
+
+> 注意：直接测 `models.json` 里的 key 会全部 401；**真实可用于的认证来自 `auth.json`**（deepseek/moonshotai-cn/xai）。
 
 ## 设计原则（对齐上游 aqua2k1）
 
