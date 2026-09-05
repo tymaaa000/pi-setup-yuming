@@ -1,5 +1,5 @@
 {
-  "lastChangelogVersion": "0.84.2",
+  "lastChangelogVersion": "0.84.4",
   "theme": "tokyo-night",
   "defaultProvider": "deepseek",
   "defaultModel": "deepseek-v4-pro",
@@ -16,6 +16,9 @@
   },
   "treeFilterMode": "user-only",
   "hideThinkingBlock": false,
+  "compaction": {
+    "enabled": true
+  },
   "externalEditor": "C:/Users/14681/npp.bat",
   "enabledModels": [
     "deepseek/deepseek-v4-pro",
