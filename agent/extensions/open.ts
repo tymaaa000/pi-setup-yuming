@@ -7,7 +7,7 @@
  * open  — LLM-callable tool
  */
 
-import { spawn, execSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
@@ -40,7 +40,9 @@ function isUrl(input: string): boolean {
 }
 
 function toWindowsPath(linuxPath: string): string {
-  return execSync(`wslpath -w "${linuxPath}"`, { encoding: "utf-8" }).trim();
+  return execFileSync("wslpath", ["-w", linuxPath], {
+    encoding: "utf-8",
+  }).trim();
 }
 
 /** Resolve input to an absolute path (URLs pass through unchanged). */
@@ -92,8 +94,11 @@ function doOpen(target: string): { ok: boolean; message: string } {
     });
     proc.unref();
     return { ok: true, message: `Opened with ${cmd}` };
-  } catch (err: any) {
-    return { ok: false, message: `Failed to open: ${err.message}` };
+  } catch (err: unknown) {
+    return {
+      ok: false,
+      message: `Failed to open: ${err instanceof Error ? err.message : String(err)}`,
+    };
   }
 }
 
@@ -101,7 +106,10 @@ function doOpen(target: string): { ok: boolean; message: string } {
 
 export default function (pi: ExtensionAPI) {
   // Shared implementation
-  function openTarget(args: string | undefined, cwd: string): { ok: boolean; message: string } {
+  function openTarget(
+    args: string | undefined,
+    cwd: string,
+  ): { ok: boolean; message: string } {
     if (!args?.trim()) {
       return { ok: false, message: "Usage: /open <file|url|directory>" };
     }
@@ -135,8 +143,8 @@ export default function (pi: ExtensionAPI) {
         description: "The file path, URL, or directory to open",
       }),
     }),
-    async execute(_toolCallId, params) {
-      const result = openTarget(params.target, process.cwd());
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const result = openTarget(params.target, ctx.cwd);
       return {
         content: [{ type: "text", text: result.message }],
         details: {},
