@@ -75,3 +75,19 @@ Data source: `/metrics` skill parses `sessions/*.jsonl`. Current baseline (2026-
 - **Cache-friendly**: cache-read share ≈ 98% — keep context reuse; avoid breaking session continuity unnecessarily.
 - **Cost-aware**: don't use expired providers; periodically `/metrics` to review, `/cleanup` to prune old sessions/logs.
 - **Iterate**: every so often run `/iterate` (metrics + baseline delta + recommendations) to verify improvement — avg tokens/turn ↓, reasoning share ↓, cache reuse stable = more efficient. Propose the next `[你]`/`[pi]` action and lock wins into this section.
+
+## Periodic Self-Iteration (周期自检, 阈值 3 天)
+
+At the start of each session (before the first big task), run the period check once:
+
+```bash
+bash "D:/Program Files/piagent/.pi/agent/skills/u/metrics/scripts/periodic-check.sh" 3
+```
+
+- Output `fresh:...` → skip silently (no mention).
+- Output `stale:Ndays` or `no-baseline` → run the iterate cycle:
+  1. `python3 "D:/Program Files/piagent/.pi/agent/skills/u/metrics/scripts/metrics.py"` (delta + recommendations)
+  2. Show user a 3-4 line digest: what changed since last check + top `[你]`/`[pi]` action; ask if they want to adopt (don't auto-change config).
+  3. `python3 "D:/Program Files/piagent/.pi/agent/skills/u/metrics/scripts/metrics.py" --save-baseline` to snapshot this round.
+
+Threshold = 3 days (edit here to change the period). Scripts auto-detect the config/sessions dirs.
