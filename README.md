@@ -76,7 +76,10 @@ python3 -c "import json,urllib.request as u;d=json.load(open('models.json'));\
 | 技能 | 作用 |
 |------|------|
 | `metrics` | 用量量化：按模型/项目/日期/工具/子代理聚合 token，输出改进信号 |
+| `iterate` | 自我迭代闭环：对比基线(delta) + 输出 `[你]`/`[pi]` 下一步动作 |
 | `cleanup` | 安全清理：删旧会话 + 截断崩溃日志（默认 dry-run，需 `--apply` 才删）|
 | `setup-update` | 上游更新检查/合并/推送 |
 
-> 用法：对话中 `/skill:metrics`、`/skill:cleanup`；或直接跑 `skills/u/<name>/scripts/` 下的脚本。
+> 用法：对话中 `/skill:metrics`、`/skill:iterate`、`/skill:cleanup`；或直接跑 `skills/u/<name>/scripts/` 下的脚本。
+
+**自我迭代循环**：`/metrics`(看现状) → `/iterate`(对比基线+推荐 `[你]/[pi]` 动作) → 采纳后存新基线 → 下轮验证 delta 是否变高效 → `/cleanup` 定期维护。

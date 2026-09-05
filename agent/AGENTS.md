@@ -74,3 +74,4 @@ Data source: `/metrics` skill parses `sessions/*.jsonl`. Current baseline (2026-
 - **Trim verbosity**: historical output tokens exceed input — prefer concise, structured answers; tighten prompts.
 - **Cache-friendly**: cache-read share ≈ 98% — keep context reuse; avoid breaking session continuity unnecessarily.
 - **Cost-aware**: don't use expired providers; periodically `/metrics` to review, `/cleanup` to prune old sessions/logs.
+- **Iterate**: every so often run `/iterate` (metrics + baseline delta + recommendations) to verify improvement — avg tokens/turn ↓, reasoning share ↓, cache reuse stable = more efficient. Propose the next `[你]`/`[pi]` action and lock wins into this section.
