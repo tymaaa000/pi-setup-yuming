@@ -68,3 +68,15 @@ python3 -c "import json,urllib.request as u;d=json.load(open('models.json'));\
 2. **agent 薄 frontmatter**：model/thinking 钉在 agent 上，行为可复现。
 3. **扩展做深模块**：复杂扩展 `core/index` 分离 + 依赖注入 + 测试；简单扩展单文件。
 4. **密钥/运行时数据不进 git**，配置才进 git。
+
+## 技能（在 agent-setup 仓库）
+
+本仓库是**引擎配置**；**技能**在 [`agent-setup`](../agent-setup) 仓库，同步到 `~/.pi/agent/skills/`。
+
+| 技能 | 作用 |
+|------|------|
+| `metrics` | 用量量化：按模型/项目/日期/工具/子代理聚合 token，输出改进信号 |
+| `cleanup` | 安全清理：删旧会话 + 截断崩溃日志（默认 dry-run，需 `--apply` 才删）|
+| `setup-update` | 上游更新检查/合并/推送 |
+
+> 用法：对话中 `/skill:metrics`、`/skill:cleanup`；或直接跑 `skills/u/<name>/scripts/` 下的脚本。
