@@ -8,8 +8,7 @@
     "npm:@gotgenes/pi-subagents",
     "https://github.com/hugohe3/ppt-master",
     "npm:@narumitw/pi-lsp",
-    "npm:@narumitw/pi-chrome-devtools",
-    "npm:@juicesharp/rpiv-web-tools"
+    "npm:@narumitw/pi-chrome-devtools"
   ],
   "defaultThinkingLevel": "max",
   "terminal": {
