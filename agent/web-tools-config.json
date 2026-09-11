@@ -2,7 +2,7 @@
   "search": {
     "routing": {
       "provider": "codex-alpha-search",
-      "fallback": false
+      "fallback": true
     },
     "timeoutMs": 15000,
     "maxResults": 10,

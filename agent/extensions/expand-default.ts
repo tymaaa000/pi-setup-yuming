@@ -9,7 +9,10 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 export default function (pi: ExtensionAPI) {
   pi.on("session_start", (_event, ctx) => {
-    // 默认展开工具输出（包括 bash、read、grep、搜索等所有工具的结果）
-    ctx.ui.setToolsExpanded(true);
+    // 默认保持折叠，减少长工具输出造成的 TUI 噪音。
+    // 需要旧行为时设置 PI_EXPAND_TOOLS=1 后重启 pi。
+    if (process.env.PI_EXPAND_TOOLS === "1") {
+      ctx.ui.setToolsExpanded(true);
+    }
   });
 }
