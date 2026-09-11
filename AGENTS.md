@@ -4,19 +4,30 @@
 
 We use Biome for formatting, linting, and import sorting.
 
-**Critical workflow:**
-1. Run `npx biome check .` (read-only) to verify code quality
-2. **ONLY after check passes**, run `npx biome format --write .` to format
-3. Commit the formatted code
+**Use the scoped package name.** The bare name resolves to an unrelated legacy
+package (`biome@0.3.3`) and silently does nothing useful:
+
+```bash
+npx @biomejs/biome check .        # ✅ correct
+npx biome check .                 # ❌ wrong package, no useful output
+```
+
+Biome is not installed locally and is fetched on demand, so a check is only
+meaningful once the download succeeds — confirm with `npx @biomejs/biome --version`
+before trusting a silent run.
 
 **Commands:**
-- `npx biome check .` → Quality validation (lint + import sort, read-only)
-- `npx biome format --write .` → Apply formatting after check passes
-- `npx biome ci .` → CI checks (read-only, fail on issues)
+- `npx @biomejs/biome check .` → Quality validation (lint + import sort, read-only)
+- `npx @biomejs/biome format --write <paths>` → Apply formatting after check passes
+- `npx @biomejs/biome ci .` → CI checks (read-only, fail on issues)
 
 **Rules:**
 - **NEVER** run `format --write` before `check` passes
 - **NEVER** use `--write` in CI
+- **NEVER** run `format --write .` across the whole repo: the existing files use
+  mixed indentation (some TAB, most 2-space) while `biome.json` declares
+  `indentStyle: "tab"`, so a repo-wide format would rewrite ~90 files and bury
+  real changes. Scope `--write` to the files you actually touched.
 - Configuration in `biome.json`
 
 ## Migration Rule
