@@ -10,7 +10,7 @@
  *   /fm         - open yazi in the current directory
  */
 
-import { spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import type {
 	ExtensionAPI,
 	ExtensionContext,
@@ -57,46 +57,61 @@ export async function runTerminalApp(
 	try {
 		return await ctx.ui.custom<TerminalAppResult>(
 			(tui, _theme, _keybindings, done) => {
-				let result: TerminalAppResult;
-				try {
-					tui.stop();
-					if (options.clearScreen) process.stdout.write("\x1b[2J\x1b[H");
+				// ⚠️ Do NOT use spawnSync here. On Windows, a synchronous
+				// child_process call keeps Node/libuv's console input read queued
+				// after the parent pauses stdin, racing the child for the console
+				// input buffer. The victim is any terminal-query reply (DA1/DSR)
+				// the app under us reads on startup - yazi, for example, then
+				// times out with "Terminal response timeout" and eats keystrokes
+				// while servicing the probe. pi's own external editor path
+				// (dist/modes/interactive/external-editor.js) avoids spawnSync for
+				// exactly this reason; keep this asynchronous too.
+				let settled = false;
+				const finish = (result: TerminalAppResult) => {
+					if (settled) return;
+					settled = true;
+					try {
+						tui.start();
+						tui.requestRender(true);
+					} catch (error) {
+						done({ kind: "launch-error", error: asError(error) });
+						return;
+					}
+					done(result);
+				};
 
-					const child = spawnSync(command, [...(options.args ?? [])], {
+				tui.stop();
+				if (options.clearScreen) process.stdout.write("\x1b[2J\x1b[H");
+
+				// Drop any buffered stdin (e.g. the Enter that invoked the
+				// command) so it is not re-interpreted by the child.
+				process.stdin.pause();
+
+				try {
+					const child = spawn(command, [...(options.args ?? [])], {
 						stdio: "inherit",
 						cwd: ctx.cwd,
 						env: process.env,
 					});
 
-					if (child.error) {
-						const error = asError(child.error);
-						result = {
-							kind: isNotFound(error) ? "not-found" : "launch-error",
-							error,
-						};
-					} else {
-						result = {
-							kind: "exited",
-							status: child.status,
-							signal: child.signal,
-						};
-					}
+					child.on("error", (error) => {
+						const launchError = asError(error);
+						finish({
+							kind: isNotFound(launchError) ? "not-found" : "launch-error",
+							error: launchError,
+						});
+					});
+					child.on("close", (status, signal) => {
+						finish({ kind: "exited", status, signal });
+					});
 				} catch (error) {
 					const launchError = asError(error);
-					result = {
+					finish({
 						kind: isNotFound(launchError) ? "not-found" : "launch-error",
 						error: launchError,
-					};
-				} finally {
-					try {
-						tui.start();
-						tui.requestRender(true);
-					} catch (error) {
-						result = { kind: "launch-error", error: asError(error) };
-					}
+					});
 				}
 
-				done(result);
 				return { render: () => [], invalidate: () => {} };
 			},
 		);
