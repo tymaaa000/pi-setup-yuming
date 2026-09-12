@@ -476,6 +476,7 @@ engines:
   - name: bing
     engine: bing
     shortcut: bi
+    weight: 0.5
     base_url: https://www.bing.com
   - name: bing images
     engine: bing_images
@@ -1279,7 +1280,7 @@ engines:
     engine: mwmbl
     # api_url: https://api.mwmbl.org
     shortcut: mwm
-    disabled: true
+    weight: 1.2
   - name: niconico
     engine: niconico
     shortcut: nico
@@ -1896,7 +1897,7 @@ engines:
     categories: general
     search_type: web
     shortcut: yd
-    disabled: true
+    weight: 1.5
   - name: yandex images
     engine: yandex
     network: yandex
@@ -2460,5 +2461,4 @@ doi_resolvers:
   doi.org: 'https://doi.org/'
   sci-hub.se: 'https://sci-hub.se/'
   sci-hub.st: 'https://sci-hub.st/'
-  sci-hub.ru: 'https://sci-hub.ru/'
-default_doi_resolver: 'oadoi.org'
+  sci-hub.ru: 'https:                                                   

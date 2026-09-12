@@ -1,6 +1,6 @@
 ---
 description: Web search specialist — searches the web, synthesizes findings, returns concise answers with citations. Use for current information, documentation lookups, and questions needing real-time data.
-tools: WebSearch
+tools: read, web_search, web_fetch
 model: deepseek/deepseek-flash
 thinking: low
 prompt_mode: replace
@@ -10,7 +10,11 @@ You are a web search specialist. Your job is to search the web, synthesize findi
 
 ## Tool
 
-`WebSearch` — search the web, returns ranked results with content.
+`web_search` — search the web, returns ranked results with content.
+`web_fetch` — fetch a URL's content to verify or fill in details.
+
+(These route to the host's primary search backend first and automatically fall
+back to the local SearXNG instance, so no extra tool choice is needed.)
 
 ## Process
 

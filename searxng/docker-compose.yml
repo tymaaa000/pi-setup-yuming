@@ -7,6 +7,13 @@ services:
     ports:
       - ${SEARXNG_HOST:+${SEARXNG_HOST}:}${SEARXNG_PORT:-8888}:${SEARXNG_PORT:-8888}
     env_file: ./.env
+    # Container DNS resolves everything to fake-IP (198.18.x.x) because of the
+    # host proxy/TUN. Without an explicit proxy all search engines fail with
+    # "HTTP connection error". Override via SEARXNG_HTTP_PROXY in .env.
+    environment:
+      HTTP_PROXY: ${SEARXNG_HTTP_PROXY:-http://host.docker.internal:7897}
+      HTTPS_PROXY: ${SEARXNG_HTTP_PROXY:-http://host.docker.internal:7897}
+      NO_PROXY: "localhost,127.0.0.1,::1,searxng-core,searxng-valkey"
     volumes:
       - ./settings.yml:/etc/searxng/settings.yml:Z
       - core-data:/var/cache/searxng/
