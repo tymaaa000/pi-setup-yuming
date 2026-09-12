@@ -11,6 +11,9 @@
  */
 
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
+import { delimiter, dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type {
 	ExtensionAPI,
 	ExtensionContext,
@@ -40,6 +43,42 @@ function asError(error: unknown): Error {
 
 function isNotFound(error: Error): boolean {
 	return (error as NodeJS.ErrnoException).code === "ENOENT";
+}
+
+/**
+ * Locate pi's managed binary directory (yazi/fd/rg live there).
+ *
+ * This file sits at `<agentDir>/extensions/terminal.ts`, so `<agentDir>/bin` is
+ * its sibling; `PI_CODING_AGENT_DIR` is only a fallback for relocated copies.
+ */
+function agentBinDir(): string | undefined {
+	const candidates: string[] = [];
+	try {
+		candidates.push(join(dirname(dirname(fileURLToPath(import.meta.url))), "bin"));
+	} catch {
+		// import.meta.url unavailable - fall through to the env override below.
+	}
+	const agentDir = process.env.PI_CODING_AGENT_DIR;
+	if (agentDir) candidates.push(join(agentDir, "bin"));
+	return candidates.find((dir) => existsSync(dir));
+}
+
+/**
+ * pi prepends its managed bin dir to child PATH, but only for the built-in
+ * shell tools (`getShellEnv()` in `dist/utils/shell.js`); extensions that spawn
+ * from the UI get pi's raw PATH. Without this, `/fm`, `/vim` and `/lg` resolve
+ * whatever happens to be on the user's PATH instead of pi's own copies.
+ */
+function terminalAppEnv(): NodeJS.ProcessEnv {
+	const binDir = agentBinDir();
+	if (!binDir) return process.env;
+
+	const pathKey =
+		Object.keys(process.env).find((key) => key.toLowerCase() === "path") ??
+		"PATH";
+	const current = process.env[pathKey] ?? "";
+	if (current.split(delimiter).includes(binDir)) return process.env;
+	return { ...process.env, [pathKey]: [binDir, current].filter(Boolean).join(delimiter) };
 }
 
 /**
@@ -91,7 +130,7 @@ export async function runTerminalApp(
 					const child = spawn(command, [...(options.args ?? [])], {
 						stdio: "inherit",
 						cwd: ctx.cwd,
-						env: process.env,
+						env: terminalAppEnv(),
 					});
 
 					child.on("error", (error) => {
