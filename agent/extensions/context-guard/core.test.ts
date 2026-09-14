@@ -23,6 +23,25 @@ test("large unbounded reads are blocked", () => {
 	assert.match(reason ?? "", /ffgrep/);
 });
 
+test("numeric string limits still count as bounded", () => {
+	assert.equal(
+		largeReadReason({ path: "large.log", limit: "200" }, 100 * 1024),
+		undefined,
+	);
+	assert.match(
+		largeReadReason({ path: "large.log", limit: "1000" }, 100 * 1024) ?? "",
+		/Direct read blocked/,
+	);
+});
+
+test("the byte boundary is two-sided", () => {
+	assert.equal(largeReadReason({ path: "exact.ts" }, 32 * 1024), undefined);
+	assert.match(
+		largeReadReason({ path: "just-over.ts" }, 32 * 1024 + 1) ?? "",
+		/Direct read blocked/,
+	);
+});
+
 test("bounded large reads remain available", () => {
 	assert.match(
 		largeReadReason({ path: "large.log", offset: 1 }, 100 * 1024) ?? "",

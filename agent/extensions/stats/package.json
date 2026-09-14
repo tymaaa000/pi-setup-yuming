@@ -4,6 +4,6 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "test": "node --test core.test.ts html.test.ts context-budget.test.ts ../context-guard/core.test.ts"
+    "test": "bash ../../../scripts/test-all.sh ."
   }
 }

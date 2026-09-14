@@ -12,6 +12,11 @@ restore can reproduce the setup.
 | `sync-pi-safely.sh` | Drift check → sync → verify that `sessions/` and the launcher survived |
 | `update-pi.sh` | Update the Pi package and verify it still starts; `--check` is read-only |
 | `verify-pi.sh` | Non-destructive health check (paths, permissions, services, toolchain) |
+| `test-all.sh` | Run every extension unit test with pi's own jiti TS loader |
+
+`sync-pi.sh` also installs the two single files pi reads from the agent directory
+(`APPEND_SYSTEM.md`, `web-tools-config.json`) and honours `PI_ROOT` / `PI_CODING_AGENT_DIR`.
+It never touches `bin/`; `--check` prints a note when `bin/` and `scripts/` diverge.
 
 ## Daily workflow
 
@@ -23,6 +28,32 @@ bash ~/pi/bin/sync-pi.sh            # 3. apply the sync
 # equivalent, with the safety wrapper:
 bash ~/pi/bin/sync-pi-safely.sh
 ```
+
+## Tests
+
+```bash
+bash ~/pi/repos/pi-setup/scripts/test-all.sh          # every extension test
+bash ~/pi/repos/pi-setup/scripts/test-all.sh --list   # which files would run
+npm test                                              # inside a single extension
+```
+
+`test-all.sh` loads TypeScript through pi's bundled jiti, so extensions may use either
+`"./x.ts"` or `"./x.js"` import specifiers — plain `node --test` cannot resolve the `.js`
+form, which is why older packages needed `tsx`.
+
+## Keeping `bin/` and `scripts/` aligned
+
+`bin/` stays authoritative at runtime, so this is manual:
+
+```bash
+# repository → runtime (after editing a script here)
+install -m 755 ~/pi/repos/pi-setup/scripts/<name> ~/pi/bin/<name>
+
+# runtime → repository (after editing the live script)
+cp ~/pi/bin/<name> ~/pi/repos/pi-setup/scripts/<name>
+```
+
+`bin/migrate-sessions.py` is a one-shot migration helper that is intentionally not versioned.
 
 ## Two rules
 

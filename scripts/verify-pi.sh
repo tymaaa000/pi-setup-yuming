@@ -70,7 +70,7 @@ if bash "$ROOT/bin/sync-pi.sh" --check >/tmp/pi-sync-check.$$.log 2>&1; then
 else
   bad "Drift between repositories and runtime; see /tmp/pi-sync-check.$$.log"
 fi
-rm -f "/tmp/pi-sync-check.$$"
+rm -f "/tmp/pi-sync-check.$$.log"
 
 if [ -x "$ROOT/bin/capture-pi.sh" ]; then
   ok "capture-pi.sh is executable"
@@ -80,11 +80,18 @@ fi
 
 if [ -d "$HOME/.cache/qmd" ] && [ -f "$HOME/.cache/qmd/index.sqlite" ]; then
   ok "qmd local index exists"
-  qmd_status="$(qmd status 2>/dev/null || true)"
-  if ! printf '%s\n' "$qmd_status" | grep -q 'Orphaned:' || printf '%s\n' "$qmd_status" | grep -q 'Orphaned:[[:space:]]*0'; then
-    ok "qmd has no orphaned embedding chunks"
+  if qmd_status="$(qmd status 2>&1)"; then
+    # qmd omits the Orphaned line entirely when there is nothing to clean up.
+    orphan_line="$(printf '%s\n' "$qmd_status" | grep -m1 'Orphaned:' || true)"
+    if [ -z "$orphan_line" ]; then
+      ok "qmd has no orphaned embedding chunks"
+    elif printf '%s\n' "$orphan_line" | grep -qE 'Orphaned:[[:space:]]*0([^0-9]|$)'; then
+      ok "qmd has no orphaned embedding chunks"
+    else
+      bad "qmd has orphaned embedding chunks: $orphan_line"
+    fi
   else
-    bad "qmd has orphaned embedding chunks or the status check failed"
+    bad "qmd status failed: $(printf '%s\n' "$qmd_status" | head -1)"
   fi
   for model in \
     "$HOME/.cache/qmd/models/hf_ggml-org_embeddinggemma-300M-Q8_0.gguf" \

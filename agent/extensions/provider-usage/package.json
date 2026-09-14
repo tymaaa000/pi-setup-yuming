@@ -1,9 +1,13 @@
 {
-  "name": "pi-commit",
+  "name": "pi-provider-usage",
   "private": true,
   "version": "1.0.0",
   "type": "module",
   "scripts": {
     "test": "bash ../../../scripts/test-all.sh ."
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.1",
+    "typescript": "^5.9.3"
   }
 }

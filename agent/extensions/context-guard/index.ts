@@ -1,4 +1,5 @@
 import { statSync } from "node:fs";
+import { homedir } from "node:os";
 import path from "node:path";
 import {
 	type ExtensionAPI,
@@ -12,6 +13,13 @@ interface ReadInput {
 	limit?: unknown;
 }
 
+/** Expand a leading "~" the same way a shell would; path.resolve alone would not. */
+function resolveReadPath(cwd: string, inputPath: string): string {
+	if (inputPath === "~") return homedir();
+	if (inputPath.startsWith("~/")) return path.join(homedir(), inputPath.slice(2));
+	return path.resolve(cwd, inputPath);
+}
+
 export default function contextGuard(pi: ExtensionAPI) {
 	pi.on("tool_call", (event, ctx) => {
 		if (event.toolName === "grep" || event.toolName === "ffgrep") {
@@ -23,10 +31,10 @@ export default function contextGuard(pi: ExtensionAPI) {
 		if (!isToolCallEventType("read", event)) return;
 
 		const input = event.input as ReadInput;
-		if (typeof input.path !== "string") return;
+		if (typeof input.path !== "string" || input.path === "") return;
 
 		try {
-			const filePath = path.resolve(ctx.cwd, input.path);
+			const filePath = resolveReadPath(ctx.cwd, input.path);
 			const stat = statSync(filePath);
 			if (!stat.isFile()) return;
 

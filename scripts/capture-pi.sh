@@ -12,10 +12,11 @@
 # and commit the result in the repository afterwards.
 set -euo pipefail
 
-REPOS="$HOME/pi/repos"
+ROOT="${PI_ROOT:-$HOME/pi}"
+REPOS="$ROOT/repos"
 DST="$REPOS/pi-setup/agent"
 DST_SKILLS="$REPOS/agent-setup/skills"
-SRC="$HOME/pi/agent"
+SRC="${PI_CODING_AGENT_DIR:-$ROOT/agent}"
 
 for d in "$REPOS" "$SRC"; do
   [ -d "$d" ] || { echo "❌ Missing directory: $d — aborting" >&2; exit 1; }
@@ -39,6 +40,9 @@ PAIRS=(
   "skills:$SRC/skills:$DST_SKILLS"
 )
 
+# Single files the repository owns (see sync-pi.sh).
+FILES=(APPEND_SYSTEM.md web-tools-config.json)
+
 if [[ "${1:-}" == "--check" || "${1:-}" == "-n" ]]; then
   echo "=== Runtime-only or modified items not yet in the repositories ==="
   rc=0
@@ -50,6 +54,18 @@ if [[ "${1:-}" == "--check" || "${1:-}" == "-n" ]]; then
     else
       echo "  ⚠  $name:"
       echo "$out" | sed 's/^/       /'
+      rc=1
+    fi
+  done
+  for f in "${FILES[@]}"; do
+    if [ ! -f "$SRC/$f" ] && [ ! -f "$DST/$f" ]; then
+      echo "  ✅ $f: absent on both sides"
+      continue
+    fi
+    if cmp -s "$SRC/$f" "$DST/$f" 2>/dev/null; then
+      echo "  ✅ $f: in sync"
+    else
+      echo "  ⚠  $f: runtime and repository differ"
       rc=1
     fi
   done
@@ -66,6 +82,12 @@ for pair in "${PAIRS[@]}"; do
     rsync -a "${EX[@]}" "$src/" "$dst/"
   fi
   echo "  ✔ $name"
+done
+for f in "${FILES[@]}"; do
+  if [ -f "$SRC/$f" ]; then
+    cp "$SRC/$f" "$DST/$f"
+    echo "  ✔ $f"
+  fi
 done
 echo "Done. Next: cd \"$REPOS/pi-setup\" && git status && git diff"
 if [ "$PRUNE" -eq 0 ]; then
