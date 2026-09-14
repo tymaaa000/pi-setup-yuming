@@ -16,7 +16,9 @@ agent/pi-chrome-devtools.json
 # Node
 agent/npm/node_modules/
 agent/extensions/**/node_modules/
-agent/extensions/copet
+
+# Context telemetry (runtime-owned)
+agent/context-budget/
 
 # Sessions (transient)
 agent/sessions/

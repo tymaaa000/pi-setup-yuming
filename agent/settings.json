@@ -1,28 +1,97 @@
 {
-  "lastChangelogVersion": "0.84.4",
-  "theme": "tokyo-night",
-  "defaultProvider": "deepseek",
-  "defaultModel": "deepseek-v4-pro",
+  "lastChangelogVersion": "0.85.1",
+  "defaultProvider": "openai-codex",
+  "defaultModel": "gpt-5.6-luna",
+  "defaultThinkingLevel": "max",
+  "modelThinkingLevels": {
+    "openai-codex/gpt-5.6-luna": "max",
+    "openai-codex/gpt-5.6-sol": "xhigh",
+    "openai-codex/gpt-6-astra": "low"
+  },
   "packages": [
+    "npm:@ff-labs/pi-fff",
     "npm:@mammothb/pi-websearch",
     "npm:@gotgenes/pi-subagents",
-    "https://github.com/hugohe3/ppt-master",
+    "npm:@narumitw/pi-chrome-devtools",
     "npm:@narumitw/pi-lsp",
-    "npm:@narumitw/pi-chrome-devtools"
+    "npm:@narumitw/pi-btw",
+    "npm:pi-memory",
+    "https://github.com/Hisn00w/ASu-skills",
+    "https://github.com/hugohe3/ppt-master",
+    "https://github.com/OrangeX4/Chinese-Resume-in-Typst@d2f85d4e63bfdeb09de3c121f46b2d20093e4057",
+    "npm:pi-auto-compact@1.2.3",
+    "npm:@eko24ive/pi-ask@1.2.0"
   ],
-  "defaultThinkingLevel": "max",
+  "enableSkillCommands": true,
+  "skillful": {
+    "hideAllSkills": true,
+    "hiddenSkills": [
+      "code-review",
+      "codebase-design",
+      "diagnosing-bugs",
+      "domain-modeling",
+      "grilling",
+      "prototype",
+      "tdd",
+      "caveman",
+      "cleanup",
+      "grill-me",
+      "grill-with-docs",
+      "implement",
+      "iterate",
+      "metrics",
+      "setup-update",
+      "teach",
+      "to-spec",
+      "to-tickets",
+      "academic-paper-reviewer",
+      "computer-use",
+      "doc-coauthoring",
+      "document-docx",
+      "docx",
+      "find-skills",
+      "grant-proposal-assistant",
+      "orca-cli",
+      "orchestration",
+      "pdf",
+      "pptx",
+      "xlsx",
+      "contributor",
+      "evidence-recap",
+      "great-resume",
+      "interview",
+      "job-apply",
+      "job-match",
+      "make-resume",
+      "offer",
+      "project-guide",
+      "ppt-master",
+      "ask-user"
+    ]
+  },
   "terminal": {
     "showTerminalProgress": true
   },
-  "treeFilterMode": "user-only",
+  "enabledModels": [
+    "deepseek/deepseek-flash",
+    "deepseek/deepseek-v4-pro",
+    "openai-codex/gpt-5.6-luna",
+    "openai-codex/gpt-6-astra",
+    "openai-codex/gpt-5.6-terra"
+  ],
   "hideThinkingBlock": false,
+  "quietStartup": false,
+  "collapseChangelog": true,
+  "outputPad": 0,
+  "showCacheMissNotices": true,
+  "markdown": {
+    "mermaid": "final"
+  },
+  "theme": "dark",
+  "editorPaddingX": 0,
+  "showHardwareCursor": true,
   "compaction": {
     "enabled": true
   },
-  "externalEditor": "C:/Users/14681/npp.bat",
-  "enabledModels": [
-    "deepseek/deepseek-v4-pro",
-    "deepseek/deepseek-v4-flash",
-    "deepseek/deepseek-v4-flash-vision-exp"
-  ]
+  "externalEditor": "nvim"
 }

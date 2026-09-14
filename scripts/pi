@@ -1,0 +1,19 @@
+#!/bin/sh
+# ~/pi/bin/pi — Linux-native Pi launcher
+#
+# Prepends two directories to PATH so child processes resolve the Linux toolchain:
+#   1) ~/pi/bin      — bare `pi` invocations inside extensions hit this launcher
+#   2) ~/pi/node/bin — npm and `#!/usr/bin/env node` scripts hit the Linux Node
+export PATH="$HOME/pi/bin:$HOME/pi/node/bin:$PATH"
+
+# Pin the configuration directory; never inherit the Windows PI_CODING_AGENT_DIR.
+export PI_CODING_AGENT_DIR="$HOME/pi/agent"
+
+# pi-memory: the Windows setup supplied these through user environment variables.
+# Without them the extension silently falls back to ~/.pi/agent.
+export PI_MEMORY_DIR="$HOME/pi/agent/memory"
+export PI_MEMORY_EXIT_SUMMARY=0        # keep exit fast (matches the Windows setting)
+export PI_HARDWARE_CURSOR=1
+
+exec "$HOME/pi/node/bin/node" --disable-warning=ExperimentalWarning \
+  "$HOME/pi/app/node_modules/@earendil-works/pi-coding-agent/dist/cli.js" "$@"

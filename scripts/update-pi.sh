@@ -1,52 +1,87 @@
-#!/bin/bash
-# update-pi.sh — pi 一键更新（程序本体 + 配置/skills 同步）
-# 用法: bash update-pi.sh
+#!/usr/bin/env bash
+# update-pi.sh — update the Linux Pi installation and run non-destructive checks afterwards.
 #
-# 背景：本安装是「本地 npm 项目 + git 配置仓库」结构，`pi update` 无法自更新
-#（会提示 not managed by a global npm install）。此脚本封装完整更新流程：
-#   1. npm 更新 pi 程序本体到最新
-#   2. git 拉取 pi-setup / agent-setup 配置仓库
-#   3. 同步配置到 .pi/agent（复用 sync-pi.sh）
-
+# Usage:
+#   ~/pi/bin/update-pi.sh --check  # read-only checks; no network, no changes
+#   ~/pi/bin/update-pi.sh          # update the Pi package
+#
+# Configuration repositories are not pulled automatically: pi-setup may hold local
+# changes that need a manual decision first.
 set -euo pipefail
 
-BASE="/mnt/d/Program Files/piagent"
-
-# 用 pi 专用 conda 环境的 node/npm，避开系统 PATH 里其他 node（如 veryfl 的 v22.9）
-export PATH="/mnt/d/ProgramData/Anaconda_envs/envs/piagent_env:$PATH"
-
-# 校验 node 版本 >= 22.19.0（pi 的 engines 要求），防止误用旧 node 造成 EBADENGINE
+ROOT="${PI_ROOT:-$HOME/pi}"
+NODE="$ROOT/node/bin/node"
+NPM="$ROOT/node/bin/npm"
+APP="$ROOT/app"
+BACKUPS="$ROOT/backups"
 REQ_NODE="22.19.0"
-NODE_BIN="/mnt/d/ProgramData/Anaconda_envs/envs/piagent_env/node.exe"
-NODE_VER="$("$NODE_BIN" --version 2>/dev/null | sed 's/^v//; s/\r$//' || true)"
-if [ -z "$NODE_VER" ]; then
-  echo -e "\e[31m[错误] 找不到 $NODE_BIN，请检查 piagent_env 环境\e[0m" >&2
-  exit 1
-fi
-echo "node: v$NODE_VER (pi 要求 >= v$REQ_NODE)"
-if [ "$(printf '%s\n%s\n' "$REQ_NODE" "$NODE_VER" | sort -V | head -1)" != "$REQ_NODE" ]; then
-  echo -e "\e[31m[错误] Node.js 版本过低 (v$NODE_VER < v$REQ_NODE)，pi 需要 >= v$REQ_NODE\e[0m" >&2
-  echo -e "\e[31m请使用 D:\\ProgramData\\Anaconda_envs\\envs\\piagent_env 里的 node/npm 更新\e[0m" >&2
+
+version_ge() {
+  [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -1)" = "$2" ]
+}
+
+if [ ! -x "$NODE" ] || [ ! -x "$NPM" ]; then
+  echo "❌ Missing Linux Node/npm: $NODE / $NPM" >&2
   exit 1
 fi
 
-cd "$BASE"
+NODE_VER="$($NODE --version | sed 's/^v//')"
+if ! version_ge "$NODE_VER" "$REQ_NODE"; then
+  echo "❌ Node v$NODE_VER is below the required v$REQ_NODE" >&2
+  exit 1
+fi
+echo "Node: v$NODE_VER"
 
-echo "=== [1/3] 更新 pi 程序本体 (npm) ==="
-npm install "@earendil-works/pi-coding-agent@latest"
+case "${1:-}" in
+  --check)
+    "$ROOT/bin/pi" --version
+    echo "=== Repository status (read-only) ==="
+    for repo in "$ROOT/repos/pi-setup" "$ROOT/repos/agent-setup"; do
+      if [ -d "$repo/.git" ]; then
+        echo "-- $repo"
+        git -C "$repo" status --short --branch
+      else
+        echo "⚠️  Repository missing: $repo"
+      fi
+    done
+    if [ -x "$ROOT/bin/verify-pi.sh" ]; then
+      "$ROOT/bin/verify-pi.sh"
+    fi
+    exit 0
+    ;;
+  "") ;;
+  *) echo "Usage: $0 [--check]" >&2; exit 2 ;;
+esac
 
-echo ""
-echo "=== [2/3] 拉取配置仓库 (pi-setup / agent-setup) ==="
-# origin = 你自己的 fork。如需同步原作者 aqua2k1 的更新，先手动执行：
-#   git -C "$BASE/pi-setup" fetch upstream && git -C "$BASE/pi-setup" merge upstream/main
-#   git -C "$BASE/agent-setup" fetch upstream && git -C "$BASE/agent-setup" merge upstream/main
-git -C "$BASE/pi-setup" pull origin main
-git -C "$BASE/agent-setup" pull origin main
+[ -d "$APP" ] || { echo "❌ Pi application directory missing: $APP" >&2; exit 1; }
+mkdir -p "$BACKUPS"
+STAMP="$(date +%Y%m%d-%H%M%S)"
+META_BACKUP="$BACKUPS/pi-app-metadata-$STAMP.tar.gz"
 
-echo ""
-echo "=== [3/3] 同步配置到 .pi/agent ==="
-bash "$BASE/sync-pi.sh"
+tar -czf "$META_BACKUP" -C "$APP" package.json package-lock.json
+chmod 600 "$META_BACKUP"
+echo "Backed up package metadata: $META_BACKUP"
 
-echo ""
-echo "=== 更新完成，重启 pi 生效 ==="
-pi --version
+before="$($ROOT/bin/pi --version 2>/dev/null || true)"
+echo "Current version: ${before:-unknown}"
+
+echo "=== Updating the Linux Pi installation ==="
+(
+  cd "$APP"
+  "$NPM" install --save-exact "@earendil-works/pi-coding-agent@latest"
+)
+
+after="$($ROOT/bin/pi --version 2>/dev/null || true)"
+if [ -z "$after" ]; then
+  echo "❌ Pi failed to start after the update; restoring package metadata and reinstalling the previous version" >&2
+  tar -xzf "$META_BACKUP" -C "$APP"
+  (cd "$APP" && "$NPM" ci)
+  exit 1
+fi
+
+echo "Updated version: $after"
+if [ -x "$ROOT/bin/verify-pi.sh" ]; then
+  "$ROOT/bin/verify-pi.sh"
+fi
+
+echo "✅ Pi update finished; repositories were not pulled automatically — review git status before syncing."
