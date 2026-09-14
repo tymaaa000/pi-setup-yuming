@@ -1,57 +1,57 @@
 ---
-description: 生成垂直行业周报，核心人物一手观点优先；按主题过滤
-argument-hint: "<主题> [时间范围] [Top-N，默认 35，建议 30–40]"
+description: Generate a vertical-industry weekly report, prioritizing first-hand views from key people; filtered by topic
+argument-hint: "<topic> [time range] [Top-N, default 35, recommended 30–40]"
 ---
 
-你是一位专注垂直行业动态的研究分析师。你的任务是用中文生成一份高质量的 **行业周报**。
+You are a research analyst focused on a vertical industry. Your job is to produce a high-quality **industry weekly report** written in Chinese.
 
-## 输入
+## Inputs
 
-- **主题**（必填）：`$1`。行业 / 赛道关键词或短语（如 `AI Agent`、`具身智能`、`自动驾驶`、`开源大模型`、`机器人`）。
-- **时间范围**（可选）：`${2:-过去 7 天}`，可由 `$ARGUMENTS` 中第二段覆盖。
-- **Top-N**（可选）：`${3:-35}`。「本周值得关注」入报卡片上限，**建议 30–40**；默认 `35`。若用户给出不在 30–40 的整数，仍可尊重，但在 `.quality-note` 标明。
+- **Topic** (required): `$1`. An industry / sector keyword or phrase (such as `AI Agent`, `具身智能`, `自动驾驶`, `开源大模型`, `机器人`).
+- **Time range** (optional): `${2:-past 7 days}`, overridable by the second segment of `$ARGUMENTS`.
+- **Top-N** (optional): `${3:-35}`. Upper bound for "worth watching this week" cards, **30–40 recommended**; default `35`. If the user gives an integer outside 30–40, honor it but note it in `.quality-note`.
 
-若 `$1` 为空，输出用法说明并停止：
+If `$1` is empty, print usage and stop:
 
 ```
-用法：/industry-weekly <主题> [时间范围] [Top-N]
-示例：/industry-weekly AI Agent
-      /industry-weekly 具身智能 过去 7 天
-      /industry-weekly 开源大模型 2026-07-20
-      /industry-weekly AI Agent 过去 7 天 40
+Usage: /industry-weekly <topic> [time range] [Top-N]
+Examples: /industry-weekly AI Agent
+          /industry-weekly 具身智能 past 7 days
+          /industry-weekly 开源大模型 2026-07-20
+          /industry-weekly AI Agent past 7 days 40
 ```
 
-将时间范围解析为 ISO 日期 `$SINCE`（默认：今天往前推 7 天，格式 `YYYY-MM-DD`）。报告覆盖 `$SINCE` ~ 今天（`$TODAY`，本机日期）。解析时注意：若第二段是纯数字，则视为 `Top-N`，时间范围仍用默认。
+Resolve the time range into an ISO date `$SINCE` (default: 7 days before today, `YYYY-MM-DD`). The report covers `$SINCE` through today (`$TODAY`, local date). Parsing note: if the second segment is a bare number, treat it as `Top-N` and keep the default time range.
 
-## 核心理念
+## Core principle
 
-**一手观点 > 二手报道。** CEO/产品负责人的原话比媒体通稿有价值得多。每条内容尽量追溯到人，而不是只报道事件。
+**First-hand views beat second-hand coverage.** A CEO's or product lead's own words are worth far more than a press release. Trace every item to a person, not just to an event.
 
-- 搜索必须围绕用户给定主题 `$Q_PRIMARY`（及变体），禁止默认漂移到无关赛道
-- websearch 是主事实层（人物观点、产品、战略、分析争议）
-- **入报 Top-N：** 高质量候选按信号强度排序后取前 `$TOP_N` 条写入「本周值得关注」（默认 35，建议 30–40）。达标不足 N 则全部入报并如实说明；禁止为凑满 N 填充低价值条目，也禁止隐性压到更小 Top-K
+- Searches must stay on the user's topic `$Q_PRIMARY` (and its variants); never drift into unrelated sectors
+- websearch is the primary fact layer (people's views, products, strategy, analysis, controversy)
+- **Report Top-N:** rank high-quality candidates by signal strength and take the top `$TOP_N` (default 35, recommended 30–40) into "worth watching this week". If fewer than N qualify, report all of them and say so; never pad with low-value items, and never silently shrink to a smaller Top-K
 
-## 执行流程
+## Execution flow
 
-### Step 0：解析主题与 Query 变体
+### Step 0: Parse the topic and query variants
 
-1. 计算 `$SINCE`、`$TODAY`、`$TOP_N`。
-2. 生成 query 变体：
-   - 保留用户原文为 `$Q_PRIMARY`
-   - 若主题含中文，扩展 1–2 个英文等价词（如「具身智能」→ `embodied AI` / `embodied agent`；「开源大模型」→ `open-source LLM`）
-   - 若主题已是英文，可选扩展 1–2 个近义/子领域写法（如 `AI Agent` → `agentic AI` / `autonomous agent`）
-   - 记录为 `$Q_PRIMARY`、`$Q_ALT1`、`$Q_ALT2`…
-3. 根据主题推断本周应覆盖的**代表性公司 / 人物 / 平台**（写入后续搜索 prompt，**不要**写死成与主题无关的固定名单）。主题宽时覆盖头部 + 代表性创业公司；主题窄时优先该细分赛道玩家。
+1. Compute `$SINCE`, `$TODAY`, `$TOP_N`.
+2. Build query variants:
+   - keep the user's original wording as `$Q_PRIMARY`
+   - if the topic is Chinese, add 1–2 English equivalents (具身智能 → `embodied AI` / `embodied agent`; 开源大模型 → `open-source LLM`)
+   - if the topic is already English, optionally add 1–2 synonyms or sub-domains (`AI Agent` → `agentic AI` / `autonomous agent`)
+   - record them as `$Q_PRIMARY`, `$Q_ALT1`, `$Q_ALT2`, …
+3. Infer the **representative companies / people / platforms** to cover this week (put them into the search prompts; do **not** hardcode a fixed list unrelated to the topic). Broad topics cover the leaders plus representative startups; narrow topics prioritize that specific niche.
 
-### Step 1：基线并行搜索（5 个 websearch subagent）
+### Step 1: Parallel baseline search (5 websearch subagents)
 
-以下 5 个为必跑基线，**同一轮全部同时启动**，每个 `run_in_background: true`。  
-所有 prompt 必须显式带上主题与时间窗，禁止搜成无关行业。
+These five are the mandatory baseline. **Start them all in the same turn**, each with `run_in_background: true`.
+Every prompt must carry the topic and time window explicitly; never let a search drift into an unrelated industry.
 
-**Agent B1 — 核心人物一手观点（英文）**
+**Agent B1 — First-hand views from key people (English)**
 ```
 subagent_type: "websearch"
-description: "基线-人物观点-EN"
+description: "baseline-people views-EN"
 prompt: |
   Industry theme: $Q_PRIMARY (alts: $Q_ALT1, $Q_ALT2)
   Time window: past 7 days (since $SINCE to $TODAY).
@@ -62,24 +62,24 @@ prompt: |
 run_in_background: true
 ```
 
-**Agent B2 — 核心人物一手观点（中文及亚洲）**
+**Agent B2 — First-hand views from key people (Chinese and Asia)**
 ```
 subagent_type: "websearch"
-description: "基线-人物观点-ZH"
+description: "baseline-people views-ZH"
 prompt: |
-  行业主题：$Q_PRIMARY（变体：$Q_ALT1, $Q_ALT2）
-  时间窗：$SINCE ~ $TODAY（过去约 7 天）。
+  Industry theme: $Q_PRIMARY (alts: $Q_ALT1, $Q_ALT2)
+  Time window: $SINCE ~ $TODAY (about the past 7 days).
 
-  搜索中国及亚洲地区该主题相关公司创始人与核心人物的访谈、播客、演讲、官方博客、公众号长文、即刻/Twitter 长文。覆盖头部平台与代表性创业公司（按主题推断，不要硬套无关名单）。提取他们对产品方向、行业结构、商业模式、组织变化、技术路线、竞争判断和未来趋势的原创观点。
+  Search for interviews, podcasts, talks, official blogs, long-form WeChat posts, and 即刻/Twitter long posts from founders and key figures at companies in this theme across China and Asia. Cover the leading platforms and representative startups (inferred from the topic; do not force an unrelated list). Extract their original views on product direction, industry structure, business models, organizational change, technical roadmaps, competitive judgment, and future trends.
 
-  记录：谁说的、职位/公司、在哪里、何时发布、核心观点原文或概括。必须紧扣主题；与主题无关的通稿、翻译转载丢弃。
+  Record: who said it, role/company, where, when, and the key argument verbatim or summarized. Stay strictly on-theme; drop unrelated press releases and translated reprints.
 run_in_background: true
 ```
 
-**Agent B3 — 产品发布与重大更新**
+**Agent B3 — Product launches and major updates**
 ```
 subagent_type: "websearch"
-description: "基线-产品更新"
+description: "baseline-product updates"
 prompt: |
   Industry theme: $Q_PRIMARY (alts: $Q_ALT1, $Q_ALT2)
   Time window: past 7 days (since $SINCE to $TODAY).
@@ -90,10 +90,10 @@ prompt: |
 run_in_background: true
 ```
 
-**Agent B4 — 公司战略、组织与市场动作**
+**Agent B4 — Company strategy, organization, and market moves**
 ```
 subagent_type: "websearch"
-description: "基线-战略组织"
+description: "baseline-strategy org"
 prompt: |
   Industry theme: $Q_PRIMARY (alts: $Q_ALT1, $Q_ALT2)
   Time window: past 7 days (since $SINCE to $TODAY).
@@ -102,10 +102,10 @@ prompt: |
 run_in_background: true
 ```
 
-**Agent B5 — 行业分析与争议**
+**Agent B5 — Industry analysis and controversy**
 ```
 subagent_type: "websearch"
-description: "基线-分析争议"
+description: "baseline-analysis debate"
 prompt: |
   Industry theme: $Q_PRIMARY (alts: $Q_ALT1, $Q_ALT2)
   Time window: past 7 days (since $SINCE to $TODAY).
@@ -116,9 +116,9 @@ prompt: |
 run_in_background: true
 ```
 
-记录每个 agent ID：`$ID_B1`, `$ID_B2`, `$ID_B3`, `$ID_B4`, `$ID_B5`。
+Record each agent ID: `$ID_B1`, `$ID_B2`, `$ID_B3`, `$ID_B4`, `$ID_B5`.
 
-### Step 2：等待基线完成
+### Step 2: Wait for the baseline
 
 ```
 get_subagent_result(agent_id: $ID_B1, wait: true)
@@ -128,46 +128,46 @@ get_subagent_result(agent_id: $ID_B4, wait: true)
 get_subagent_result(agent_id: $ID_B5, wait: true)
 ```
 
-### Step 3：缺口评估与补充搜索
+### Step 3: Gap assessment and supplementary searches
 
-对照以下**必覆盖清单**逐项检查基线结果（均须与主题相关）：
+Check the baseline against this **mandatory coverage list** (everything must stay on-topic):
 
-- [ ] 至少 1 条来自 CEO/创始人级别的一手观点
-- [ ] 至少 1 条来自中文/亚洲市场的独立内容（非翻译）
-- [ ] 至少 1 条产品/能力层面的实质性更新
-- [ ] 至少 1 条涉及商业模式或组织变化的分析
-- [ ] 至少 1 条行业批评/争议/不同意见
+- [ ] At least 1 first-hand view from a CEO/founder level
+- [ ] At least 1 independent Chinese/Asian-market item (not a translation)
+- [ ] At least 1 substantive product/capability update
+- [ ] At least 1 analysis touching the business model or organization
+- [ ] At least 1 industry criticism / controversy / dissenting view
 
-**如果某项缺失**，启动补充 agent：
+**If an item is missing**, start a supplement agent:
 
 ```
 subagent_type: "websearch"
-description: "补充-<维度名>"
+description: "supplement-<dimension>"
 prompt: |
   Industry theme: $Q_PRIMARY (alts: $Q_ALT*)
   Time window: $SINCE .. $TODAY.
-  <针对缺失维度，用更窄或换角度的 query 深挖；必须绑定主题>
+  <dig deeper on the missing dimension with a narrower or reframed query; must stay on topic>
 run_in_background: true
 ```
 
-**如果本周有重大事件**（如头部公司发布重磅产品、核心高管离职、重大收购等），即使基线已覆盖该事件，也应启动 1-2 个聚焦该事件的深度补充 agent，例如：搜该事件的二级评论、竞争对手反应、投资人解读。
+**If a major event happened this week** (a heavyweight product launch, a key executive departure, a significant acquisition), start 1–2 focused deep-dive agents for it even when the baseline already covers it — for example, second-order commentary, competitor reactions, or investor interpretation.
 
-补充 agent 数量不设上限，但每个都应有明确的填补理由。记录 ID 为 `$ID_S1`, `$ID_S2`, ...。
+There is no cap on supplements, but each one needs a stated reason. Record IDs as `$ID_S1`, `$ID_S2`, ….
 
-### Step 4：等待补充结果（如有）
+### Step 4: Wait for supplements (if any)
 
 ```
 get_subagent_result(agent_id: $ID_S1, wait: true)
 ...
 ```
 
-### Step 5：汇总并生成 HTML 周报
+### Step 5: Assemble and generate the HTML report
 
-用中文汇总全部搜索结果，生成一份自包含的 HTML 文件，写入当前工作目录。
+Assemble all search results in Chinese and write a self-contained HTML file into the current working directory.
 
-**文件路径**：`./YYYY-MM-DD-industry-weekly.html`（`YYYY-MM-DD` = `$TODAY`）
+**File path**: `./YYYY-MM-DD-industry-weekly.html` (`YYYY-MM-DD` = `$TODAY`)
 
-**HTML 结构必须严格遵循以下模板**——不要修改整体结构，缺内容的区块留空或写「本周暂无」，不要删除 section。
+**The HTML structure must follow this template strictly** — do not restructure it. Empty blocks stay empty or say 本周暂无; do not delete sections.
 
 ```html
 <!DOCTYPE html>
@@ -175,7 +175,7 @@ get_subagent_result(agent_id: $ID_S1, wait: true)
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>行业周报 — {主题} — YYYY-MM-DD</title>
+<title>行业周报 — {topic} — YYYY-MM-DD</title>
 <style>
   :root {
     --bg: #fafafa;
@@ -303,18 +303,19 @@ get_subagent_result(agent_id: $ID_S1, wait: true)
   <!-- Header -->
   <div class="header">
     <h1>行业周报</h1>
-    <div class="theme">{主题}</div>
+    <div class="theme">{topic}</div>
     <p class="meta">覆盖周期：YYYY-MM-DD ~ YYYY-MM-DD &nbsp;|&nbsp; 报告生成：YYYY-MM-DD</p>
   </div>
 
-  <!-- 质量说明：如本周高质量条目明显偏少（例如 < max(8, TOP_N/4)），在此用 .quality-note 说明；否则删除此块 -->
+  <!-- Quality note: when high-quality items this week are clearly scarce (e.g. < max(8, TOP_N/4)),
+       explain that here with .quality-note; otherwise delete this block -->
 
-  <!-- ==================== 一、本周值得关注 ==================== -->
+  <!-- ==================== 1. Worth watching this week ==================== -->
   <div class="section">
     <div class="section-title"><span class="num">一</span> 本周值得关注</div>
     <p style="font-size:13px;color:var(--muted);margin-bottom:12px">高质量候选按信号取 Top-N（本报 N=…；达标 M 条）。不足 N 则全部列出，不填充。</p>
 
-    <!-- 每条用 .card 包裹，最多 $TOP_N 个（默认 35，建议 30–40）。不足时如实说明，不填充 -->
+    <!-- one .card each, at most $TOP_N (default 35, recommended 30–40). When short, say so; do not pad -->
     <div class="card">
       <h3>标题：一句话概括事件</h3>
       <div class="field">
@@ -342,7 +343,7 @@ get_subagent_result(agent_id: $ID_S1, wait: true)
 
   </div>
 
-  <!-- ==================== 二、核心人物观点总结 ==================== -->
+  <!-- ==================== 2. Key-people view summary ==================== -->
   <div class="section">
     <div class="section-title"><span class="num">二</span> 核心人物观点总结</div>
 
@@ -371,11 +372,11 @@ get_subagent_result(agent_id: $ID_S1, wait: true)
     </div>
   </div>
 
-  <!-- ==================== 三、持续跟踪议题 ==================== -->
+  <!-- ==================== 3. Topics to keep tracking ==================== -->
   <div class="section">
     <div class="section-title"><span class="num">三</span> 持续跟踪议题</div>
 
-    <!-- 3-5 个 -->
+    <!-- 3-5 items -->
     <div class="watch-item">
       <strong>议题：</strong>为什么重要。关注 <em>什么信号</em>。
     </div>
@@ -386,15 +387,15 @@ get_subagent_result(agent_id: $ID_S1, wait: true)
 </html>
 ```
 
-## 质量标准
+## Quality standards
 
-- 每条内容有可核验的原始来源链接
-- 优先选择 `$SINCE` ~ `$TODAY` 内发生或发布的信息
-- 搜索覆盖中英文及其他主要语言源；内容必须与主题相关
-- 排除：与主题无关的基座模型/通稿新闻（除非直接影响该行业产品形态）、低质量转载/营销稿、只有金额无战略解读的融资通稿、纯技术教程
-- 如果某条信息只有一个来源且无法交叉验证，在来源处标注「⚠️ 单一来源」
-- 「本周值得关注」入报 **Top-`$TOP_N`**（默认 35，建议 30–40）；禁止隐性再压到更小 Top-K，也禁止用低分条目凑满 N
-- 发生截断时须同时交代「达标 M」与「入报 Top-N」
-- 如果本周高质量条目明显偏少（例如 < max(8, TOP_N/4)），在文件顶部用 `.quality-note` 如实说明，不要填充低价值内容
-- 使用 `write` 工具将最终 HTML 写入工作目录
-- 完成后使用 `open` tool 打开生成的 HTML 文件，在浏览器中查看效果
+- Every item has a verifiable primary source link
+- Prefer information published between `$SINCE` and `$TODAY`
+- Cover Chinese, English, and other major-language sources; everything must stay on topic
+- Exclude: off-topic base-model or general press news (unless it directly reshapes the industry's product landscape), low-quality reprints/marketing posts, funding notices that only quote an amount with no strategic reading, and pure technical tutorials
+- When an item has only one source and cannot be cross-checked, mark the citation with ⚠️ single source
+- "Worth watching this week" totals **Top-`$TOP_N`** (default 35, recommended 30–40); never silently shrink to a smaller Top-K, and never pad to N with low-score items
+- When truncation happens, state both "M qualified" and "Top-N reported"
+- When high-quality items are clearly scarce (e.g. < max(8, TOP_N/4)), say so honestly with `.quality-note` at the top of the file; never pad with low-value content
+- Write the final HTML into the working directory with `write`
+- Open the generated HTML with the `open` tool when done to check it in a browser

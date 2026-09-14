@@ -1,66 +1,66 @@
 ---
-description: 生成英文学术论文周报（预印本 / 录用 / 热度），按主题过滤；顶会动态发现
-argument-hint: "<主题> [时间范围] [Top-N，默认 35，建议 30–40]"
+description: Generate an English-paper weekly report (preprints / accepted / trending), filtered by topic with dynamic venue discovery
+argument-hint: "<topic> [time range] [Top-N, default 35, recommended 30–40]"
 ---
 
-你是一位专注学术前沿的研究分析师。你的任务是用中文生成一份高质量的 **英文学术论文周报**。
+You are a research analyst focused on the academic frontier. Your job is to produce a high-quality **English-paper weekly report** written in Chinese.
 
-## 输入
+## Inputs
 
-- **主题**（必填）：`$1`。自由关键词或短语（如 `AI Agent`、`Gaussian Splatting`、`LLM safety`、`tool use`）。
-- **时间范围**（可选）：`${2:-过去 7 天}`，可由 `$ARGUMENTS` 中第二段覆盖。
-- **Top-N**（可选）：`${3:-35}`。最终入报论文上限，**建议 30–40**；默认 `35`。若用户给出不在 30–40 的整数，仍可尊重，但在 `.quality-note` 标明。
+- **Topic** (required): `$1`. A free keyword or phrase (such as `AI Agent`, `Gaussian Splatting`, `LLM safety`, `tool use`).
+- **Time range** (optional): `${2:-past 7 days}`, overridable by the second segment of `$ARGUMENTS`.
+- **Top-N** (optional): `${3:-35}`. Upper bound for papers in the report, **30–40 recommended**; default `35`. If the user gives an integer outside 30–40, honor it but note it in `.quality-note`.
 
-若 `$1` 为空，输出用法说明并停止：
+If `$1` is empty, print usage and stop:
 
 ```
-用法：/paper-weekly <主题> [时间范围] [Top-N]
-示例：/paper-weekly AI Agent
-      /paper-weekly Gaussian Splatting 过去 7 天
-      /paper-weekly LLM reasoning 2026-07-20
-      /paper-weekly AI Agent 过去 7 天 40
+Usage: /paper-weekly <topic> [time range] [Top-N]
+Examples: /paper-weekly AI Agent
+          /paper-weekly Gaussian Splatting past 7 days
+          /paper-weekly LLM reasoning 2026-07-20
+          /paper-weekly AI Agent past 7 days 40
 ```
 
-将时间范围解析为 ISO 日期 `$SINCE`（默认：今天往前推 7 天，格式 `YYYY-MM-DD`）。报告覆盖 `$SINCE` ~ 今天（`$TODAY`，本机日期）。解析时注意：若第二段是纯数字，则视为 `Top-N`，时间范围仍用默认。
+Resolve the time range into an ISO date `$SINCE` (default: 7 days before today, `YYYY-MM-DD`). The report covers `$SINCE` through today (`$TODAY`, local date). Parsing note: if the second segment is a bare number, treat it as `Top-N` and keep the default time range.
 
-## 核心理念
+## Core principle
 
-**可验证的论文元数据 > 媒体二手解读。**
+**Verifiable paper metadata beats second-hand media interpretation.**
 
-- 主事实层来自 **并行 general-purpose 子 Agent** 内 `curl` 调学术 API（arXiv ×2 / OpenAlex ×2 / HuggingFace Daily Papers / Semantic Scholar / Crossref；含 IEEE 等付费 venue 的**公开摘要**）
-- **只收录英文论文**（`language:en` 或标题/摘要为英文；中文刊、中文标题一律丢弃）
-- **不维护静态顶会路由表**；venue 从本周检索命中中**动态统计与发现**
-- **IEEE / ACM / Springer 等付费站**：不下载全文、不绕过付费墙；**仅用公开 title + abstract 判定相关性与入报**；有 DOI / IEEE Xplore 摘要页 / OpenAlex 记录即可
-- websearch 只解释「为什么重要」和社区反应，不替代论文列表
-- **最终输出 Top-N 截断**：相关性达标后按分数排序，取前 `$TOP_N` 篇入报告（默认 35，建议 30–40）；可按方向聚类展示，不要为版面再二次砍卡
+- The primary fact layer comes from **parallel general-purpose subagents** running `curl` against scholarly APIs (arXiv ×2 / OpenAlex ×2 / HuggingFace Daily Papers / Semantic Scholar / Crossref; including **public abstracts** of paywalled venues such as IEEE)
+- **English papers only** (`language:en`, or English title/abstract; Chinese journals and Chinese titles are dropped)
+- **No static top-conference routing table**; venues are counted and discovered **dynamically** from this week's hits
+- **Paywalled sites (IEEE / ACM / Springer)**: never download full texts and never bypass paywalls; judge relevance and inclusion from **public title + abstract only**; a DOI, IEEE Xplore abstract page, or OpenAlex record is enough
+- websearch only explains "why it matters" and community reaction; it never replaces the paper list
+- **Final Top-N cutoff**: after relevance passes, rank by score and take the top `$TOP_N` (default 35, recommended 30–40). Cluster by direction for presentation; do not cut a second time for layout
 
-## 执行流程
+## Execution flow
 
-**主 Agent 只做编排与汇总**：解析参数 → 启动/等待子 Agent → 合并打分 → 写 HTML。  
-**禁止**主 Agent 自己批量 `curl` 学术 API；采集与（可选）缺口补查一律交给 `general-purpose` 子 Agent（因其可执行 `bash`/`curl`）。  
-**禁止**用 websearch 枚举本周论文全集。
+**The main agent only orchestrates and assembles**: parse inputs → start/wait for subagents → merge and score → write the HTML.
+**Never** let the main agent batch-curl scholarly APIs itself; collection and (optional) gap-filling always go to `general-purpose` subagents (they can run `bash`/`curl`).
+**Never** use websearch to enumerate the week's papers.
 
-### Step 0：解析主题与 Query 变体（主 Agent）
+### Step 0: Parse the topic and query variants (main agent)
 
-1. 计算 `$SINCE`、`$TODAY`、`$TOP_N`。
-2. 生成英文 query 变体（**检索只用英文**）：
-   - 用户原文若是中文 → 必须译成 1–3 个地道英文学术检索式（如「具身智能」→ `embodied AI` / `embodied agent` / `vision-language-action`）
-   - 用户原文已是英文 → 保留原文，并可选扩展 1–2 个近义/子领域写法（如 `AI Agent` → `tool-using agent` / `agentic LLM`）
-   - 记录为 `$Q_PRIMARY`、`$Q_ALT1`、`$Q_ALT2`…
-3. **不要**预设 venue 白名单；不要猜测「该主题属于哪个顶会」。Venue 留给采集结果动态统计。
+1. Compute `$SINCE`, `$TODAY`, `$TOP_N`.
+2. Build English query variants (**search in English only**):
+   - if the user's topic is Chinese → translate it into 1–3 idiomatic English scholarly queries (具身智能 → `embodied AI` / `embodied agent` / `vision-language-action`)
+   - if the topic is already English → keep it and optionally add 1–2 synonyms or sub-domains (`AI Agent` → `tool-using agent` / `agentic LLM`)
+   - record them as `$Q_PRIMARY`, `$Q_ALT1`, `$Q_ALT2`, …
+3. **Do not** preset a venue whitelist and do not guess "which top conference owns this topic". Venues are discovered from collection results.
 
-### Step 1：并行启动采集子 Agent（全部 general-purpose）
+### Step 1: Start collection subagents in parallel (all general-purpose)
 
-以下 **7 个为必跑基线**，**同一轮全部同时启动**（每个 `run_in_background: true`，`subagent_type: "general-purpose"`）。  
-不要串行等完一个再开下一个——并行是默认。  
-各 Agent 内自行 `bash` + `curl`（可用 `jq` / `python3` 解析），**返回结构化候选列表**（不要塞完整原始 JSON/XML）。
+These **7 are the mandatory baseline**; **start them all in the same turn** (each `run_in_background: true`, `subagent_type: "general-purpose"`).
+Do not wait for one before starting the next — parallel is the default.
+Each agent uses `bash` + `curl` itself (parse with `jq` / `python3`) and **returns a structured candidate list** (never a full raw JSON/XML dump).
 
-**限流注意（写入相关 prompt）：**
+**Rate-limit notes (put into the relevant prompts):**
 
-- **arXiv**：全站限流严，C1/C2 **不要**再对 arXiv 开更多并行；Agent 内部多 query 之间 `sleep 3`
-- **OpenAlex / S2 / Crossref / HF**：可跨 Agent 并行；单 Agent 内遇 429 则 sleep 后重试 1 次，失败记入 note
+- **arXiv**: strict global rate limits — C1/C2 must **not** open more arXiv parallelism; sleep 3 between queries inside an agent
+- **OpenAlex / S2 / Crossref / HF**: parallel across agents is fine; on 429 inside an agent, sleep and retry once, and note the failure
 
-统一约定（写入每个 prompt）：
+Shared contract (put into every prompt):
 
 ```
 UA='paper-weekly/1.0 (mailto:local@example.com; research digest)'
@@ -76,7 +76,7 @@ Do NOT invent abstracts or metrics. If abstract missing, leave empty.
 
 ```
 subagent_type: "general-purpose"
-description: "采集-arXiv主查询"
+description: "collect-arXiv primary"
 prompt: |
   You collect English arXiv preprints for a weekly paper digest. Use bash + curl only (no websearch for listing).
 
@@ -103,11 +103,11 @@ prompt: |
 run_in_background: true
 ```
 
-**Agent C2 — arXiv · alt queries**（无 ALT 则仍启动，立即返回 empty + note）
+**Agent C2 — arXiv · alt queries** (start it even without ALT; it returns empty + note)
 
 ```
 subagent_type: "general-purpose"
-description: "采集-arXiv副查询"
+description: "collect-arXiv alt"
 prompt: |
   You collect English arXiv preprints using ALT queries only. Use bash + curl only.
 
@@ -134,7 +134,7 @@ run_in_background: true
 
 ```
 subagent_type: "general-purpose"
-description: "采集-OpenAlex主查询"
+description: "collect-OpenAlex primary"
 prompt: |
   You collect English works from OpenAlex (PRIMARY query). Use bash + curl only.
 
@@ -159,11 +159,11 @@ prompt: |
 run_in_background: true
 ```
 
-**Agent C4 — OpenAlex · alt queries**（无 ALT 则 empty + note）
+**Agent C4 — OpenAlex · alt queries** (empty + note when no ALT)
 
 ```
 subagent_type: "general-purpose"
-description: "采集-OpenAlex副查询"
+description: "collect-OpenAlex alt"
 prompt: |
   You collect English works from OpenAlex using ALT queries only. Use bash + curl only.
 
@@ -179,11 +179,11 @@ prompt: |
 run_in_background: true
 ```
 
-**Agent C5 — HuggingFace Daily Papers（热度）**
+**Agent C5 — HuggingFace Daily Papers (heat)**
 
 ```
 subagent_type: "general-purpose"
-description: "采集-HF热度"
+description: "collect-HF heat"
 prompt: |
   You collect HuggingFace Daily Papers signals. Use bash + curl only.
 
@@ -199,11 +199,11 @@ prompt: |
 run_in_background: true
 ```
 
-**Agent C6 — Semantic Scholar（含 IEEE 等付费 venue 公开摘要）**
+**Agent C6 — Semantic Scholar (public abstracts of paywalled venues such as IEEE)**
 
 ```
 subagent_type: "general-purpose"
-description: "采集-S2摘要"
+description: "collect-S2 abstracts"
 prompt: |
   You search Semantic Scholar for English papers (including paywalled IEEE/ACM/Springer)
   for theme "$Q_PRIMARY" (alts: $Q_ALT*) in window $SINCE .. $TODAY.
@@ -226,11 +226,11 @@ prompt: |
 run_in_background: true
 ```
 
-**Agent C7 — Crossref（正式 DOI / 付费刊摘要）**
+**Agent C7 — Crossref (formal DOIs / paywalled-journal abstracts)**
 
 ```
 subagent_type: "general-purpose"
-description: "采集-Crossref"
+description: "collect-Crossref"
 prompt: |
   You collect English works via Crossref for theme "$Q_PRIMARY" (alts: $Q_ALT*)
   in window $SINCE .. $TODAY. Use bash + curl only. No PDF downloads / no paywall bypass.
@@ -252,15 +252,15 @@ prompt: |
 run_in_background: true
 ```
 
-记录 `$ID_C1` … `$ID_C7`。
+Record `$ID_C1` … `$ID_C7`.
 
-启动方式要求：
+Launch requirements:
 
-1. **一轮内同时**发出全部 7 个 `subagent(..., run_in_background: true)`（可在同一助手回合并行调用）
-2. 不要先 `wait` C1 再启动 C2…
-3. 若某 ALT 为空：对应 C2/C4 仍启动，由其快速返回 empty（保持编排统一）
+1. Issue all 7 `subagent(..., run_in_background: true)` calls **in one turn** (parallel calls in the same assistant message)
+2. Do not `wait` for C1 before starting C2 …
+3. If an ALT is empty: still start C2/C4 so they quickly return empty (keeps orchestration uniform)
 
-### Step 2：等待采集结果
+### Step 2: Wait for the collection results
 
 ```
 get_subagent_result(agent_id: $ID_C1, wait: true)
@@ -272,89 +272,89 @@ get_subagent_result(agent_id: $ID_C6, wait: true)
 get_subagent_result(agent_id: $ID_C7, wait: true)
 ```
 
-若某一路失败/空：不阻塞其它源；在后续 `.quality-note` 标明降级。
+If one source fails or is empty: do not block the others; note the degradation later in `.quality-note`.
 
-### Step 3：主 Agent 过滤、去重、动态顶会、相关性 + Top-N
+### Step 3: Main agent filtering, dedupe, dynamic venues, relevance, Top-N
 
-合并 **C1–C7** 全部候选。
+Merge all candidates from **C1–C7**.
 
-#### 去重键（按优先级）
+#### Dedupe keys (in priority order)
 
-1. arXiv id  
-2. DOI  
-3. 归一化标题（小写、去标点、压缩空白）
+1. arXiv id
+2. DOI
+3. normalized title (lowercase, punctuation stripped, whitespace collapsed)
 
-合并字段：同一论文可同时有 arXiv 链接、DOI、venue、HF upvotes、cited_by_count、付费 venue 摘要来源。
+Merge fields: one paper may carry an arXiv link, a DOI, a venue, HF upvotes, cited_by_count, and a paywalled-venue abstract source at once.
 
-#### 必须丢弃
+#### Must drop
 
-- 非英文（标题或正文主语言）
-- 与主题仅词面擦边、摘要核心贡献明显属于其他领域
-- 无标题 / 无任何可用链接（无 arXiv、无 DOI、无 OpenAlex/S2/IEEE 落地页）
-- **付费 venue 且无可用摘要、标题又不足以判定主题** → 丢弃（禁止凭刊名瞎收）
-- 明显非研究论文（招生广告、CfP 正文当 paper、纯新闻稿）
-- 重复上传的相同工作（保留信息更全的一条）
+- non-English (title or dominant body language)
+- mere word-level overlap with the topic where the abstract's core contribution clearly belongs elsewhere
+- no title / no usable link (no arXiv, no DOI, no OpenAlex/S2/IEEE landing page)
+- **paywalled venue with no abstract and a title too weak to judge the topic** → drop (never include just because of the journal name)
+- obviously non-papers (recruitment ads, CfP text treated as a paper, pure press releases)
+- duplicate uploads of the same work (keep the one with more information)
 
-#### 相关性打分 + Top-N 截断
+#### Relevance scoring + Top-N cutoff
 
-对每条打粗分，**低于阈值的丢弃**；达标者按 `score` 降序排列，**取前 `$TOP_N` 篇**（同分可看 HF upvotes、cited_by_count、是否多源交叉）：
+Give every item a coarse score, **drop anything below the threshold**, then sort the survivors by `score` descending and **take the top `$TOP_N`** (break ties with HF upvotes, cited_by_count, or multi-source corroboration):
 
 ```
 score =
-  +3  标题命中 $Q_PRIMARY 或强等价 ALT
-  +2  摘要前几句命中主题机制/任务（非仅背景句）
-  +2  动态 core venue 命中（见下）
-  +1  HF upvotes ≥ 1 或 cited_by_count 相对同周偏高
-  +1  多源交叉出现（arXiv ∩ OpenAlex 或 arXiv ∩ HF 或 S2 ∩ OpenAlex 等）
-  -3  仅共享泛词（如只因 "learning" / "model" 命中）
+  +3  title matches $Q_PRIMARY or a strong ALT
+  +2  first sentences of the abstract match the topic's mechanism/task (not just background)
+  +2  dynamic core-venue hit (see below)
+  +1  HF upvotes ≥ 1 or cited_by_count unusually high for the week
+  +1  appears across multiple sources (arXiv ∩ OpenAlex, arXiv ∩ HF, S2 ∩ OpenAlex, …)
+  -3  shares only generic words (matched merely on "learning" / "model")
 ```
 
-建议阈值：`score >= 3`（可按主题宽窄微调；放宽时在 quality-note 说明）。
+Suggested threshold: `score >= 3` (tune slightly with topic breadth; if you relax it, say so in quality-note).
 
-**Top-N 规则：**
+**Top-N rules:**
 
-- 默认 `$TOP_N = 35`，建议范围 **30–40**
-- 达标篇数 ≤ `$TOP_N` → 全部入报
-- 达标篇数 > `$TOP_N` → 只输出前 `$TOP_N`；在速览写明「达标 M 篇，入报 Top-$TOP_N」
-- 截断掉的高相关尾巴**不要**偷偷塞回卡片；可选在「趋势与持续跟踪」用一句话点名 1–3 个未入报但值得盯的方向
-- **禁止**再压到 Top-10 之类更小的隐性上限；也不要为了凑满 N 而塞低分噪音
+- Default `$TOP_N = 35`, recommended range **30–40**
+- Qualifying papers ≤ `$TOP_N` → report all
+- Qualifying papers > `$TOP_N` → output only the top `$TOP_N`; state "M qualified, Top-$TOP_N reported" in the overview
+- Do **not** sneak truncated high-relevance papers back into the cards; optionally name 1–3 directions worth watching in "trends and follow-up"
+- **Never** shrink to a hidden smaller cap such as Top-10, and never pad to N with low-score noise
 
-#### 动态顶会 / 期刊发现（替代路由表）
+#### Dynamic venue / journal discovery (replaces the routing table)
 
-对本周**通过相关性过滤**的条目统计：
+Count over this week's **relevance-filtered** items:
 
 ```
 venue_histogram[source_display_name] += 1
 ```
 
-规则：
+Rules:
 
-1. 出现次数 ≥ 2 的 venue → 列入 **本周活跃 venue**
-2. 出现 1 次但名称像正式会议/期刊、或伴随高 citation/HF 热度 → 仍可进直方图，标为 **长尾 venue**
-3. 仅有 arXiv categories、无正式 venue → 计入 **`arXiv-only`**，并按 `primary_category` 做第二直方图
-4. IEEE / 付费刊名与其它 venue **同等对待**，全部由本周数据进入直方图（不写死 IEEE 白名单，也不排除 IEEE）
-5. 从活跃 venue + 论文标题/摘要中归纳 **3–8 个研究方向簇**（cluster 名用中文+英文术语），每篇论文挂到 1 个主簇（可另打 secondary tag）
+1. Venues appearing ≥ 2 times → **active venues this week**
+2. A venue appearing once but looking like a formal conference/journal, or accompanied by high citation/HF heat → still enters the histogram as a **long-tail venue**
+3. arXiv categories without a formal venue → counted as **`arXiv-only`**, with a second histogram by `primary_category`
+4. IEEE / paywalled journal names are treated **exactly like other venues**; the histogram comes entirely from this week's data (no IEEE whitelist, and no excluding IEEE)
+5. Derive **3–8 research-direction clusters** from the active venues and the titles/abstracts (cluster names in Chinese plus the English term); assign each paper one primary cluster (a secondary tag is allowed)
 
-将下列中间结果带入后续步骤：
+Carry these intermediates into the following steps:
 
-1. **入报论文列表**（达标且进入 Top-`$TOP_N`）  
-   字段：`标题 | 作者 | 日期 | venue或arXiv cat | 链接 | 指标(upvotes/cited) | 簇 | score | 一句话贡献 | 来源标记 | abstract_only?`
-2. **截断统计**：达标总数 M、入报 min(M, TOP_N)、是否发生截断
-3. **Venue 直方图**（动态顶会发现结果；可基于达标全集统计，不限于 Top-N）
-4. **方向簇列表**（入报集合上聚类）
-5. **需外部解读的重磅清单** 3–8 篇（从入报列表里挑：新方法、新基准、明显 SOTA、高 HF 热度、高争议设定、高影响力 IEEE/正式刊）——仅用于 websearch
+1. **Reported paper list** (qualified and within Top-`$TOP_N`)
+   Fields: `title | authors | date | venue or arXiv cat | link | metrics (upvotes/cited) | cluster | score | one-line contribution | source tags | abstract_only?`
+2. **Cutoff stats**: total qualified M, reported min(M, TOP_N), whether truncation happened
+3. **Venue histogram** (the dynamic discovery result; may be computed over all qualified items, not just Top-N)
+4. **Direction clusters** (clustered over the reported set)
+5. **Headline list needing external interpretation**: 3–8 papers (new methods, new benchmarks, clear SOTA, high HF heat, contested settings, high-impact IEEE/formal venues) — websearch only
 
-### Step 4：websearch 子 Agent（并行，仅补上下文）
+### Step 4: websearch subagents (parallel, context only)
 
-只针对 Step 3 的重磅清单与整体趋势，**不要**用 websearch 重新枚举本周论文全集。
+Only for the Step 3 headline list and overall trends. Do **not** re-enumerate the week's papers with websearch.
 
-同时启动，每个 `run_in_background: true`：
+Start them together, each with `run_in_background: true`:
 
-**Agent W1 — 论文/作者一手解读**（有 ≥1 篇重磅时启动）
+**Agent W1 — First-hand paper/author interpretation** (start with ≥1 headline paper)
 
 ```
 subagent_type: "websearch"
-description: "论文-作者解读"
+description: "paper-author interpretation"
 prompt: |
   Time window: since $SINCE to $TODAY.
   Topic: $Q_PRIMARY (alts: $Q_ALT*)
@@ -368,11 +368,11 @@ prompt: |
 run_in_background: true
 ```
 
-**Agent W2 — 社区反应与二手深度**（默认启动）
+**Agent W2 — Community reaction and second-hand depth** (always start)
 
 ```
 subagent_type: "websearch"
-description: "论文-社区反应"
+description: "paper-community reaction"
 prompt: |
   Time window: since $SINCE to $TODAY.
   Topic: $Q_PRIMARY
@@ -384,11 +384,11 @@ prompt: |
 run_in_background: true
 ```
 
-**Agent W3 — 主题趋势叙事**（默认启动）
+**Agent W3 — Theme narrative** (always start)
 
 ```
 subagent_type: "websearch"
-description: "论文-主题趋势"
+description: "paper-theme trends"
 prompt: |
   Time window: since $SINCE to $TODAY.
   Research theme: $Q_PRIMARY (alts: $Q_ALT*)
@@ -400,9 +400,9 @@ prompt: |
 run_in_background: true
 ```
 
-记录 `$ID_W1`, `$ID_W2`, `$ID_W3`（未启动的跳过）。
+Record `$ID_W1`, `$ID_W2`, `$ID_W3` (skip the ones not started).
 
-### Step 5：等待 websearch 结果
+### Step 5: Wait for the websearch results
 
 ```
 get_subagent_result(agent_id: $ID_W1, wait: true)
@@ -410,22 +410,22 @@ get_subagent_result(agent_id: $ID_W2, wait: true)
 get_subagent_result(agent_id: $ID_W3, wait: true)
 ```
 
-### Step 6：缺口评估与补充（仍用子 Agent）
+### Step 6: Gap assessment and supplements (still subagents)
 
-对照清单：
+Checklist:
 
-- [ ] 主列表是否主要来自 general-purpose 子 Agent 的 curl API，而非媒体「每周论文」转载
-- [ ] 是否全部为英文论文
-- [ ] 是否已产出 **动态 venue 直方图**（哪怕大量是 arXiv-only）
-- [ ] 付费 venue（如 IEEE）是否仅在有摘要/强标题证据时入报
-- [ ] 重磅篇是否至少有 1 条外部解读或明确写「暂无作者解读」
-- [ ] W2 若回报 `candidate miss`：必须再启 **general-purpose** 子 Agent 用 arXiv/OpenAlex/S2 **curl 核实日期与英文** 后决定并入，不直接信二手标题
+- [ ] Does the main list come from general-purpose subagents' curl APIs rather than media "weekly papers" reposts?
+- [ ] Are all papers English?
+- [ ] Is there a **dynamic venue histogram** (even if most items are arXiv-only)?
+- [ ] Are paywalled venues (such as IEEE) included only with abstract/strong-title evidence?
+- [ ] Does every headline paper have at least one external interpretation, or an explicit "no author commentary found yet"?
+- [ ] If W2 returned `candidate miss`: start another **general-purpose** agent to **curl-verify date and English** via arXiv/OpenAlex/S2 before merging; never trust a second-hand title directly
 
-若召回不足，启动补充 Agent（可多个，`run_in_background: true`）：
+If recall is insufficient, start supplement agents (possibly several, `run_in_background: true`):
 
 ```
 subagent_type: "general-purpose"
-description: "补充-论文召回"
+description: "supplement-paper recall"
 prompt: |
   Gap fill for paper weekly. Theme $Q_PRIMARY / alts. Window $SINCE..$TODAY.
   Reason for this run: <e.g. too few hits / need alt query / top arXiv cats / verify candidate miss URLs>.
@@ -434,21 +434,21 @@ prompt: |
 run_in_background: true
 ```
 
-解读侧缺口：再启聚焦 `websearch`，prompt 绑定具体论文 URL/标题。
+For interpretation gaps: start another focused `websearch` with the prompt bound to specific paper URLs/titles.
 
-补充后重新打分排序，仍只保留 Top-`$TOP_N`；不要为补缺口而突破 N，除非用户显式给定了更大的 Top-N。  
-**不要**回退到静态顶会白名单。
+After supplementing, re-score and re-sort, still keeping only Top-`$TOP_N`; do not exceed N to fill gaps unless the user explicitly gave a larger Top-N.
+Do **not** fall back to a static top-conference whitelist.
 
-### Step 7：汇总并生成 HTML
+### Step 7: Assemble and generate the HTML
 
-用中文汇总，生成**自包含 HTML**，写入当前工作目录。
+Assemble in Chinese and write a **self-contained HTML** file into the current working directory.
 
-**文件路径**：`./YYYY-MM-DD-paper-weekly.html`（`YYYY-MM-DD` = `$TODAY`）
+**File path**: `./YYYY-MM-DD-paper-weekly.html` (`YYYY-MM-DD` = `$TODAY`)
 
-**HTML 结构必须严格遵循以下模板**——不要改整体结构；缺内容的区块如实写「本周暂无」，不要删 section。  
-**论文卡片：输出 Top-`$TOP_N` 入报条目**（默认 35，建议 30–40）；可按方向簇分小节。不要在 Top-N 之外再二次截断，也不要为凑满 N 填充低分条目。
+**The HTML structure must follow this template strictly** — do not restructure it. Empty blocks say 本周暂无 honestly; do not delete sections.
+**Paper cards: output the Top-`$TOP_N` items** (default 35, recommended 30–40), optionally grouped into direction clusters. Do not cut a second time inside Top-N, and do not pad to N with low-score items.
 
-付费 venue 卡片：`tags` 可加 `IEEE` / `paywalled` 等；`source` 链到 DOI 或摘要落地页；正文依据摘要撰写，**不要假装读过全文**；可在「发生了什么」注明「基于公开摘要」。
+Paywalled-venue cards: `tags` may include `IEEE` / `paywalled`; `source` links to the DOI or the abstract landing page; write the body from the abstract and **never pretend to have read the full text**; note "基于公开摘要" in the "what happened" field when applicable.
 
 ```html
 <!DOCTYPE html>
@@ -456,7 +456,7 @@ run_in_background: true
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>学术论文周报 — {主题} — YYYY-MM-DD</title>
+<title>学术论文周报 — {topic} — YYYY-MM-DD</title>
 <style>
   :root {
     --bg: #fafafa;
@@ -628,13 +628,14 @@ run_in_background: true
 
   <div class="header">
     <h1>学术论文周报</h1>
-    <div class="theme">{主题}</div>
+    <div class="theme">{topic}</div>
     <p class="meta">覆盖周期：YYYY-MM-DD ~ YYYY-MM-DD &nbsp;|&nbsp; 报告生成：YYYY-MM-DD &nbsp;|&nbsp; 语种：English only</p>
   </div>
 
-  <!-- 质量说明：召回明显不足、API 失败或阈值放宽时保留 .quality-note；否则删除此块 -->
+  <!-- Quality note: keep the .quality-note block when recall is clearly low, an API failed,
+       or the threshold was relaxed; otherwise delete this block -->
 
-  <!-- ==================== 一、本周研究速览 ==================== -->
+  <!-- ==================== 1. Weekly research overview ==================== -->
   <div class="section">
     <div class="section-title"><span class="num">一</span> 本周研究速览</div>
 
@@ -657,12 +658,12 @@ run_in_background: true
     <p style="font-size:14px;color:var(--muted)">Primary: … · Alt: …</p>
   </div>
 
-  <!-- ==================== 二、论文条目（Top-N，按方向簇） ==================== -->
+  <!-- ==================== 2. Paper entries (Top-N, by cluster) ==================== -->
   <div class="section">
     <div class="section-title"><span class="num">二</span> 论文条目</div>
     <p style="font-size:13px;color:var(--muted);margin-bottom:12px">相关性达标后按分数取 Top-N（本报 N=…；达标 M 篇）。按本周动态聚类展示。</p>
 
-    <!-- 每个方向簇一个 .cluster-title，其下 0..N 张 .card -->
+    <!-- one .cluster-title per direction cluster, with 0..N .card below it -->
     <div class="cluster-title">簇名（中文）· English label（N）</div>
 
     <div class="card">
@@ -675,14 +676,14 @@ run_in_background: true
         <div class="field-label">为什么重要</div>
         <div class="field-value">对路线、基准、可复现性或下游系统的影响。</div>
       </div>
-      <!-- 可选：有作者原话/线程再写 -->
+      <!-- optional: only when an author statement or thread exists -->
       <div class="field">
         <div class="field-label">作者 / 社区要点</div>
         <blockquote>…</blockquote>
       </div>
       <div class="tags">
         <span class="tag preprint">preprint</span>
-        <!-- 或 class="tag accepted" ；付费正式刊可用 accepted + venue 名 -->
+        <!-- or class="tag accepted"；付费正式刊可用 accepted + venue 名 -->
         <span class="tag">venue or cs.CL</span>
         <span class="tag">子方向</span>
         <!-- 高 HF 热度时： <span class="tag hot">HF hot</span> -->
@@ -696,10 +697,10 @@ run_in_background: true
     </div>
   </div>
 
-  <!-- ==================== 三、方法对比与分歧 ==================== -->
+  <!-- ==================== 3. Method comparison and disagreement ==================== -->
   <div class="section">
     <div class="section-title"><span class="num">三</span> 方法对比与分歧</div>
-    <!-- 基于本周论文集合；无足够对比则 empty -->
+    <!-- based on this week's paper set; use empty when there is not enough to compare -->
     <div class="summary-block">
       <h4>差异轴</h4>
       <ul>
@@ -708,14 +709,14 @@ run_in_background: true
     </div>
   </div>
 
-  <!-- ==================== 四、录用与会务动态 ==================== -->
+  <!-- ==================== 4. Acceptance and conference news ==================== -->
   <div class="section">
     <div class="section-title"><span class="num">四</span> 录用与会务动态</div>
-    <!-- 仅写本周核实过的 accept / award / workshop；无则 empty -->
+    <!-- only verified accept / award / workshop news from this week; otherwise empty -->
     <p class="empty">本周暂无显著录用或会务公告</p>
   </div>
 
-  <!-- ==================== 五、社区解读 ==================== -->
+  <!-- ==================== 5. Community interpretation ==================== -->
   <div class="section">
     <div class="section-title"><span class="num">五</span> 社区解读</div>
 
@@ -741,7 +742,7 @@ run_in_background: true
     </div>
   </div>
 
-  <!-- ==================== 六、趋势与持续跟踪 ==================== -->
+  <!-- ==================== 6. Trends and follow-up ==================== -->
   <div class="section">
     <div class="section-title"><span class="num">六</span> 趋势与持续跟踪</div>
 
@@ -762,31 +763,31 @@ run_in_background: true
 </html>
 ```
 
-## 质量标准
+## Quality standards
 
-- **仅英文论文**；中文标题或中文期刊正文不收录
-- 每条有可点击的主链接（优先 arXiv abs，其次 DOI，再次 OpenAlex / Semantic Scholar / IEEE 摘要页）
-- 优先 `$SINCE` 之后首次公开或正式记入 publication_date 的条目
-- 报告正文中文；论文标题、术语、venue 名保留英文
-- **主列表必须来自 general-purpose 子 Agent 的 curl API**；websearch 不得充当论文枚举来源；主 Agent 不得自己批量 curl 学术 API
-- **禁止静态顶会白名单**；Venue 分布必须来自本周命中直方图
-- **IEEE 等付费站**：只凭公开摘要（及强标题）判定；不绕过付费墙、不编造全文结果；无摘要且标题含糊则丢弃
-- **达标后取 Top-`$TOP_N` 输出**（默认 35，建议 30–40）；用方向簇组织；禁止隐性再压到更小 Top-K，也禁止用低分条目凑满 N
-- 发生截断时，速览须同时给出「达标 M」与「入报 Top-N」
-- 排除：非英文、擦边泛词命中、无链接、非论文噪声
-- 单一无法交叉验证的外部解读，在来源处标注「⚠️ 单一来源」
-- 筛选后仍过少或 API 失败时，用 `.quality-note` 如实说明，**不填充低价值条目**
-- 统计数字与卡片列表一致（「收录 N」= 第二节卡片数）
-- 使用 `write` 写入最终 HTML
-- 完成后用 `open` 打开 HTML 预览
+- **English papers only**; Chinese titles or Chinese-journal bodies are never included
+- Every item has a clickable primary link (arXiv abs first, then DOI, then OpenAlex / Semantic Scholar / IEEE abstract page)
+- Prefer items first published or formally recorded with a publication_date after `$SINCE`
+- Report body in Chinese; paper titles, terminology, and venue names keep their original English
+- **The main list must come from general-purpose subagents' curl APIs**; websearch never serves as the paper enumeration source, and the main agent never batch-curls scholarly APIs itself
+- **No static top-conference whitelist**; the venue distribution must come from this week's hit histogram
+- **Paywalled sites such as IEEE**: judge from the public abstract (and a strong title) only; never bypass paywalls or invent full-text results; drop when the abstract is missing and the title is ambiguous
+- **Output Top-`$TOP_N` after qualification** (default 35, recommended 30–40), organized by direction cluster; never shrink to a hidden smaller Top-K, and never pad to N with low-score items
+- When truncation happens, the overview states both "M qualified" and "Top-N reported"
+- Exclude: non-English, generic word-level near-misses, missing links, non-paper noise
+- A single uncorroborated external interpretation gets a ⚠️ single-source marker at the citation
+- When too few items survive filtering or an API failed, say so honestly in `.quality-note`; **never pad with low-value items**
+- Stats match the card lists ("included N" = number of cards in section two)
+- Write the final HTML with `write`
+- Open the HTML preview with `open` when done
 
-## 工具使用约束
+## Tool constraints
 
-1. **主 Agent**：只编排——解析输入、启动/等待子 Agent、合并打分/聚类、写 HTML；**不要**自己跑 arXiv/OpenAlex/HF/S2 的批量采集 curl
-2. **采集 / 核实 / 缺口补查**：`subagent_type: "general-purpose"`，Agent 内用 `bash` + `curl`（`jq` / `python3` 解析）；需要网络请求与命令行时用它，不用 websearch 冒充列表
-3. **解读 / 趋势 / 社区反应**：`subagent_type: "websearch"`；漏检线索必须交回 general-purpose curl 核实
-4. 不要把完整 API JSON/XML 糊进 HTML；先筛选再写卡片
-5. arXiv 多请求之间 `sleep 3`；OpenAlex / S2 带合理 `User-Agent`；注意各 API 限流
-6. 部分采集 Agent 失败时：用已拿到的源继续，并在 `.quality-note` 标明降级
-7. **永远不要**为了「像顶会周报」而写死 NeurIPS/ICML/IEEE… 过滤列表；顶会/IEEE 出现与否完全由本周数据决定
-8. **永远不要**下载或破解付费全文；摘要足够写卡片，不够则丢弃或降级说明
+1. **Main agent**: orchestration only — parse input, start/wait for subagents, merge scores/clusters, write the HTML; **do not** run the arXiv/OpenAlex/HF/S2 collection curls yourself
+2. **Collection / verification / gap-filling**: `subagent_type: "general-purpose"` with `bash` + `curl` (`jq` / `python3` parsing); use it whenever network requests and the command line are needed — never fake a list with websearch
+3. **Interpretation / trends / community reaction**: `subagent_type: "websearch"`; any missed item must go back to a general-purpose curl agent for verification
+4. Never paste raw API JSON/XML into the HTML; filter first, then write cards
+5. `sleep 3` between arXiv requests; send a proper `User-Agent` to OpenAlex / S2; mind each API's rate limits
+6. When some collection agents fail: continue with the sources you have and note the degradation in `.quality-note`
+7. **Never** hardcode a NeurIPS/ICML/IEEE… filter list just to look like a top-conference digest; whether top conferences or IEEE appear is decided entirely by this week's data
+8. **Never** download or crack paywalled full texts; the abstract is enough for a card — if it is not, drop the item or state the degradation
