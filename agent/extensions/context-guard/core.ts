@@ -1,18 +1,28 @@
-interface ReadInput {
-	path?: unknown;
-	offset?: unknown;
-	limit?: unknown;
-}
+import { statSync } from "node:fs";
+import { homedir } from "node:os";
+import path from "node:path";
 
 export interface SearchInput {
 	limit?: unknown;
 	context?: unknown;
 }
 
+export interface ReadInput {
+	path?: unknown;
+	offset?: unknown;
+	limit?: unknown;
+}
+
+export interface GuardResult {
+	block: true;
+	reason: string;
+}
+
 export const MAX_SEARCH_LIMIT = 20;
 export const MAX_SEARCH_CONTEXT = 3;
 const MAX_DIRECT_READ_BYTES = 32 * 1024;
 const MAX_DIRECT_READ_LINES = 400;
+const SEARCH_TOOLS = new Set(["grep", "ffgrep"]);
 
 function formatBytes(bytes: number): string {
 	if (bytes < 1024) return `${bytes}B`;
@@ -34,6 +44,15 @@ function boundedLineLimit(input: ReadInput): number | undefined {
 				: Number.NaN;
 	if (!Number.isFinite(value) || value <= 0) return undefined;
 	return value;
+}
+
+/** Expand a leading "~" the way a shell would; path.resolve alone would not. */
+export function resolveReadPath(cwd: string, inputPath: string): string {
+	if (inputPath === "~") return homedir();
+	if (inputPath.startsWith("~/")) {
+		return path.join(homedir(), inputPath.slice(2));
+	}
+	return path.resolve(cwd, inputPath);
 }
 
 export function normalizeSearchInput(input: SearchInput): {
@@ -72,4 +91,32 @@ export function largeReadReason(
 		`Direct read blocked: an unbounded read of ${formatBytes(fileBytes)} exceeds the ${formatBytes(MAX_DIRECT_READ_BYTES)} direct-read budget.`,
 		`Use read with a bounded limit (<= ${MAX_DIRECT_READ_LINES} lines), ffgrep for targeted matches, or a summary workflow.`,
 	].join(" ");
+}
+
+/**
+ * Applies the Context guard to one tool call. Mutates `input` for search tools — Pi
+ * guarantees that `tool_call` handlers see and may patch the arguments that will run.
+ */
+export function guardToolCall(
+	toolName: string,
+	input: Record<string, unknown>,
+	cwd: string,
+): GuardResult | undefined {
+	if (SEARCH_TOOLS.has(toolName)) {
+		Object.assign(input, normalizeSearchInput(input));
+		return;
+	}
+	if (toolName !== "read") return;
+
+	const read = input as ReadInput;
+	if (typeof read.path !== "string" || read.path === "") return;
+
+	try {
+		const stat = statSync(resolveReadPath(cwd, read.path));
+		if (!stat.isFile()) return;
+		const reason = largeReadReason(read, stat.size);
+		if (reason) return { block: true, reason };
+	} catch {
+		// Let the built-in read tool report its normal path/error result.
+	}
 }

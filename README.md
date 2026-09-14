@@ -36,8 +36,8 @@ pi-setup/
 ```
 
 `settings.json`, `AGENTS.md`, `keybindings.json`, `pi-lsp.json`, `pi-websearch.json`, and
-`trust.json` are **runtime-owned**: `sync-pi.sh` does not manage them, so the live copies under
-`~/pi/agent` win.
+`trust.json` are **runtime-owned**: `sync-pi.sh` does not manage them, and `--check` reports a
+difference as a note rather than a failure. The live copies under `~/pi/agent` win.
 
 ## Sync workflow
 
@@ -46,12 +46,17 @@ bash ~/pi/bin/sync-pi.sh            # repo → runtime (rsync --delete)
 bash ~/pi/bin/sync-pi.sh --check    # read-only drift check
 bash ~/pi/bin/capture-pi.sh         # runtime → repo (never deletes repo files)
 bash ~/pi/bin/verify-pi.sh          # health check
+bash ~/pi/bin/test-all.sh           # every extension test (pi's own jiti loader)
 ~/pi/bin/update-pi.sh               # upgrade Pi itself
 ```
 
-Synced paths: `extensions/`, `agents/`, `prompts/`, and `skills/`, using `rsync --delete`.
-A file that exists only in the runtime copy is **deleted** on the next sync, so anything worth
-keeping must be captured back into this repository first.
+Synced paths: `extensions/`, `agents/`, `prompts/`, `skills/`, plus the single files
+`APPEND_SYSTEM.md` and `web-tools-config.json`, using `rsync --delete`. A file that exists only
+in the runtime copy is **deleted** on the next sync, so anything worth keeping must be captured
+back into this repository first.
+
+`~/pi/bin` is runtime-owned: `sync-pi.sh --check` prints a note when `bin/` and `scripts/`
+diverge, and `scripts/README.md` documents how to copy between them.
 
 ## Extensions
 
