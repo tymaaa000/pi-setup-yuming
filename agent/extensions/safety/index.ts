@@ -32,7 +32,7 @@ export default function safetyExtension(pi: ExtensionAPI) {
     }
 
     const approved = await ctx.ui.confirm(
-      `高风险命令：${reason}`,
+      `High-risk command: ${reason}`,
       input.command,
     );
     if (!approved) return { block: true, reason: "Blocked by user" };

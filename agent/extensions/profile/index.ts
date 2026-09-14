@@ -45,10 +45,14 @@ function description(): string {
     .join("\n");
 }
 
-function setStatus(ctx: ExtensionContext, name: string): void {
-  const model = ctx.model;
-  const modelName = model ? `${model.provider}/${model.id}` : "unknown";
-  ctx.ui.setStatus("profile", `${name} · ${modelName} · ${ctx.thinkingLevel}`);
+/**
+ * Show only the profile name. The model and thinking level are already shown by
+ * pi's built-in footer (`(provider) model • thinking`), and repeating them would
+ * add another line. Without an explicit profile switch nothing is written, so the
+ * status never duplicates the footer.
+ */
+function setStatus(ctx: ExtensionContext, name: ProfileName | undefined): void {
+  ctx.ui.setStatus("profile", name ? `profile: ${name}` : undefined);
 }
 
 export default function profileExtension(pi: ExtensionAPI): void {
@@ -59,31 +63,32 @@ export default function profileExtension(pi: ExtensionAPI): void {
     handler: async (args, ctx) => {
       const name = args.trim().toLowerCase() as ProfileName;
       if (!name || !(name in PROFILES)) {
-        ctx.ui.notify(`用法：/profile <name>\n\n${description()}`, "info");
+        ctx.ui.notify(`Usage: /profile <name>\n\n${description()}`, "info");
         return;
       }
 
       const profile = PROFILES[name];
       const model = ctx.modelRegistry.find(profile.provider, profile.model);
       if (!model) {
-        ctx.ui.notify(`找不到模型：${profile.provider}/${profile.model}`, "error");
+        ctx.ui.notify(`Model not found: ${profile.provider}/${profile.model}`, "error");
         return;
       }
 
       const success = await pi.setModel(model);
       if (!success) {
-        ctx.ui.notify(`模型不可用或未配置认证：${profile.provider}/${profile.model}`, "error");
+        ctx.ui.notify(`Model unavailable or credentials missing: ${profile.provider}/${profile.model}`, "error");
         return;
       }
       pi.setThinkingLevel(profile.thinking);
       active = name;
       setStatus(ctx, name);
-      ctx.ui.notify(`已切换到 ${profile.label}：${profile.provider}/${profile.model} · ${profile.thinking}`, "info");
+
+      ctx.ui.notify(`Switched to ${profile.label}: ${profile.provider}/${profile.model} · ${profile.thinking}`, "info");
     },
   });
 
   pi.on("session_start", (_event, ctx) => {
-    setStatus(ctx, active ?? "session");
+    setStatus(ctx, active);
   });
 }
 

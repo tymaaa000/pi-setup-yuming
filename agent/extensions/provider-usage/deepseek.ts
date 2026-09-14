@@ -7,7 +7,7 @@ import { HttpError, type WidgetSource } from "./source.js";
 const DEEPSEEK_PROVIDER = "deepseek";
 const DEEPSEEK_BALANCE_URL = "https://api.deepseek.com/user/balance";
 const DEEPSEEK_PLACEHOLDER = "DeepSeek: 0 CNY";
-/** 预警阈值：任一币种余额低于该金额时黄色显示 */
+/** Warning threshold: any currency balance below this amount renders in yellow. */
 const DEEPSEEK_WARNING_AMOUNT = 20;
 
 type BalanceInfo = {
@@ -35,19 +35,19 @@ export const deepseekSource: WidgetSource = {
 		if (!res.ok) throw new HttpError(res.status);
 
 		const data = (await res.json()) as BalanceResponse;
-		// is_available:false → 无数据（占位，不覆盖缓存）。
+		// is_available:false means no data: show the placeholder without overwriting the cache.
 		if (!data.is_available) return undefined;
 		const infos = data.balance_infos ?? [];
 		if (infos.length === 0) return undefined;
 
 		const line = `DeepSeek: ${infos.map((i) => `${i.total_balance} ${i.currency}`).join(" | ")}`;
-		// 金额供 isWarning 判断（余额低于阈值 → 黄色预警）。
+		// Amounts feed isWarning (balance below the threshold turns yellow).
 		const amounts = infos
 			.map((i) => Number(i.total_balance))
 			.filter((n) => Number.isFinite(n));
 		return { line, windows: [], amounts };
 	},
-	// 任一币种余额低于阈值 → 黄色预警。
+	// Any currency balance below the threshold turns the widget yellow.
 	isWarning: (data) =>
 		(data.amounts ?? []).some((a) => a < DEEPSEEK_WARNING_AMOUNT),
 };

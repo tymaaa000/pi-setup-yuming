@@ -104,13 +104,13 @@ test("buildTask: lists staged files and includes the diff", () => {
 		],
 		"+validated input\n-removed line",
 	);
-	assert.match(task, /文件列表:/);
+	assert.match(task, /Files:/);
 	assert.match(task, /- M {2}src\/foo\.ts/);
 	assert.match(task, /- R100 {2}old\.ts → new\.ts/);
 	assert.match(task, /<staged diff>/);
 	assert.match(task, /\+validated input/);
 	// Single source of truth: the rules live in the system prompt, not here.
-	assert.doesNotMatch(task, /Conventional|72 字符|feat/);
+	assert.doesNotMatch(task, /Conventional|72 characters|feat/);
 });
 
 // ---- COMMIT_SYSTEM_PROMPT / buildPiArgs -------------------------------------
@@ -228,7 +228,7 @@ setTimeout(() => process.exit(0), 60_000);
 			timeoutMs: 50,
 		});
 		assert.equal(result.message, "");
-		assert.equal(result.error, "生成超时");
+		assert.equal(result.error, "Generation timed out");
 	});
 });
 

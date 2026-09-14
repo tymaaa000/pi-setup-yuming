@@ -38,7 +38,7 @@ import {
 const sources: WidgetSource[] = [deepseekSource, chatgptSource];
 
 // ---------------------------------------------------------------------------
-// Dispatcher：单 widget、互斥，跟随主会话模型 provider
+// Dispatcher: one widget, mutually exclusive, follows the session model's provider
 // ---------------------------------------------------------------------------
 
 export default function (pi: ExtensionAPI) {
@@ -49,9 +49,9 @@ export default function (pi: ExtensionAPI) {
 	let timer: ReturnType<typeof setInterval> | null = null;
 	let abort: AbortController | null = null;
 	let fetchGen = 0;
-	/** 各 source 最近一次成功的 UsageData（不含占位/stale）。 */
+	/** Last successful UsageData per source (placeholders and stale lines excluded). */
 	const caches = new Map<string, UsageData>();
-	/** 当前渲染快照（不含主题）；factory 渲染时重读。 */
+	/** Current render snapshot (theme-free); re-read when the factory renders. */
 	let display: { line: string; isWarning: boolean } | null = null;
 
 	function setLine(data: UsageData | undefined) {
@@ -63,7 +63,7 @@ export default function (pi: ExtensionAPI) {
 		}
 		const isWarning = source.isWarning(data);
 		display = { line: data.line, isWarning };
-		// dim 与 footer token/cost 同色调；warning 为黄色预警。
+		// dim matches the footer token/cost tone; warning renders as a yellow alert.
 		ui.setWidget(
 			WIDGET_ID,
 			(_tui, theme) =>
@@ -83,7 +83,8 @@ export default function (pi: ExtensionAPI) {
 			setLine({ ...cache, line: `${cache.line} (stale)` });
 			return;
 		}
-		// 无缓存时带错误简因，便于定位（timeout / HTTP 403 / TypeError: fetch failed 等）。
+		// Without a cache, include a short failure reason for diagnosis
+		// (timeout, HTTP 403, TypeError: fetch failed, and so on).
 		const reason =
 			err instanceof HttpError
 				? `HTTP ${err.status}`
@@ -116,12 +117,12 @@ export default function (pi: ExtensionAPI) {
 
 		const apiKey = await registry.getApiKeyForProvider(source.provider);
 		if (!apiKey) {
-			// 无认证：隐藏并停止轮询。
+			// No credentials: hide the widget and stop polling.
 			stop();
 			return;
 		}
 
-		// 首次加载 / 无缓存：先显示占位。
+		// First load with no cache: show the placeholder first.
 		if (!caches.has(source.provider))
 			setLine({ line: source.placeholder, windows: [] });
 
@@ -136,7 +137,7 @@ export default function (pi: ExtensionAPI) {
 			if (gen !== fetchGen || !active) return;
 
 			if (data === undefined) {
-				// 无数据 → 占位；不覆盖缓存。
+				// No data: show the placeholder without overwriting the cache.
 				setLine({ line: source.placeholder, windows: [] });
 				return;
 			}
@@ -146,7 +147,7 @@ export default function (pi: ExtensionAPI) {
 		} catch (err) {
 			// Abort on switch-away is ignored via gen/active checks.
 			if (gen !== fetchGen || !active) return;
-			// 401 = token 失效，缓存无意义：给出可操作的提示。
+			// 401 means the token is invalid and a cache is useless; show an actionable hint.
 			if (
 				err instanceof HttpError &&
 				err.status === 401 &&
@@ -154,7 +155,7 @@ export default function (pi: ExtensionAPI) {
 			) {
 				caches.delete(source.provider);
 				setLine({
-					line: "ChatGPT: token 过期（/login openai-codex 重新登录）",
+					line: "ChatGPT: token expired (run /login openai-codex)",
 					windows: [],
 				});
 				return;
@@ -191,13 +192,13 @@ export default function (pi: ExtensionAPI) {
 		return sources.find((s) => s.provider === model?.provider);
 	}
 
-	// 未实现的 provider：无事发生（不刷新、不提示）。
+	// Unsupported provider: do nothing (no refresh, no notice).
 	pi.registerCommand("usage", {
 		description: "Refresh provider usage/balance widget now",
 		handler: async (_args, ctx) => {
 			if (!active || !source) return;
 			await refresh();
-			// 通知最新渲染行（成功 / stale / 错误均如实反馈）。
+			// Report the latest rendered line (success, stale, or error).
 			if (active && display)
 				ctx.ui.notify(
 					display.line,

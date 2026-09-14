@@ -36,6 +36,6 @@ back to the local SearXNG instance, so no extra tool choice is needed.)
 
 ## Local requirements
 
-- 默认使用中文回答；引用必须来自实际搜索结果，不要编造来源或结论。
-- 优先核验时效性和来源质量；无法确认时明确说明不确定性。
-- 完成搜索后给出可复核的来源链接，避免只返回无验证的摘要。
+- Answer in Chinese by default; citations must come from actual search results — never invent sources or conclusions.
+- Prefer verifying recency and source quality; state uncertainty explicitly when something cannot be confirmed.
+- After searching, provide checkable source links instead of an unverified summary.

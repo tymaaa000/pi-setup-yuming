@@ -6,6 +6,7 @@ function harness() {
   const commands = new Map<string, { handler: Function }>();
   const events = new Map<string, Function>();
   const model = { provider: "openai-codex", id: "gpt-5.6-luna" };
+  const statuses: Record<string, string | undefined> = {};
   const pi: any = {
     registerCommand: (name: string, options: { handler: Function }) => commands.set(name, options),
     on: (event: string, handler: Function) => events.set(event, handler),
@@ -15,11 +16,11 @@ function harness() {
   const ctx: any = {
     model,
     thinkingLevel: "medium",
-    ui: { setStatus() {}, notify() {} },
+    ui: { setStatus: (key: string, text?: string) => { statuses[key] = text; }, notify() {} },
     modelRegistry: { find: (provider: string, id: string) => ({ provider, id }) },
   };
   profileExtension(pi);
-  return { commands, events, ctx };
+  return { commands, events, ctx, statuses };
 }
 
 test("profile: registers command and switches model/thinking", async () => {
@@ -34,4 +35,18 @@ test("profile: unknown profile does not switch", async () => {
   const h = harness();
   await h.commands.get("profile")!.handler("unknown", h.ctx);
   assert.equal(h.ctx.thinkingLevel, "medium");
+});
+
+// The status line keeps only the profile name: model/thinking already come from pi's footer.
+test("profile: status shows only the profile name after a switch", async () => {
+  const h = harness();
+  await h.commands.get("profile")!.handler("review", h.ctx);
+  assert.equal(h.statuses.profile, "profile: review");
+});
+
+test("profile: session_start without an active profile clears the status", () => {
+  const h = harness();
+  h.statuses.profile = "stale";
+  h.events.get("session_start")!({}, h.ctx);
+  assert.equal(h.statuses.profile, undefined);
 });

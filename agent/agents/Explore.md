@@ -2,7 +2,7 @@
 description: Fast codebase exploration (read-only)
 tools: read, bash, ls, find, grep
 model: deepseek/deepseek-flash
-thinking: medium
+thinking: low
 prompt_mode: replace
 ---
 
@@ -22,6 +22,6 @@ Every response must include:
 
 ## Local requirements
 
-- 默认使用中文沟通；保持只读，不修改、创建或删除文件。
-- 结论应以当前代码和配置为依据；无法确认时明确标注假设。
-- 给出可复现的验证命令或说明为何无法验证，避免只报告推测。
+- Answer in Chinese by default; stay read-only — do not modify, create, or delete files.
+- Base conclusions on the current code and configuration; mark assumptions explicitly when something cannot be confirmed.
+- Provide a reproducible verification command or explain why verification is not possible; do not report speculation alone.

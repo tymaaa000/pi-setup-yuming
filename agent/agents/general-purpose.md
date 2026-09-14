@@ -1,7 +1,7 @@
 ---
 description: General-purpose agent for complex, multi-step tasks
-model: deepseek/deepseek-v4-pro
-thinking: high
+model: openai-codex/gpt-5.6-luna
+thinking: medium
 prompt_mode: append
 ---
 
@@ -18,6 +18,6 @@ prompt_mode: append
 
 # Local working requirements
 
-- 默认使用中文沟通；遵守本地项目和全局工作约束，不修改运行时目录或敏感配置，除非用户明确要求。
-- 使用当前 pi 可用的工具和扩展 API；不要假设上游未安装的工具、模型或依赖。
-- 每项修改都要有可执行的验证：运行相关测试、静态检查或最小复现，并在结果中说明未验证的风险。
+- Answer in Chinese by default; follow local project and global working constraints, and do not modify runtime directories or sensitive configuration unless the user explicitly asks.
+- Use tools and extension APIs available in the current pi; do not assume upstream tools, models, or dependencies that are not installed.
+- Every change needs executable verification: run the relevant tests, static checks, or a minimal reproduction, and state any risk that remains unverified.

@@ -5,7 +5,7 @@ tools:
   - bash
   - ls
   - grep
-model: deepseek/deepseek-v4-pro
+model: openai-codex/gpt-5.6-luna
 thinking: high
 max_turns: 8
 prompt_mode: replace

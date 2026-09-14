@@ -44,10 +44,10 @@ const USAGE = "/preview [--thinking]";
 const HELP_TEXT = [
   USAGE,
   "",
-  "  (无参数)    选择一条过往回复，用 nvim -R 只读预览文本和 thinking",
-  "  --thinking  明确包含 thinking blocks（以 Markdown 引用形式显示）",
+  "  (default)   pick a past reply and preview its text plus thinking in nvim -R",
+  "  --thinking  include thinking blocks explicitly (rendered as markdown quotes)",
   "",
-  "快捷键：Alt+P 直接打开最新回复的只读预览（不包含 thinking blocks）。",
+  "Shortcut: Alt+P opens the latest reply read-only without thinking blocks.",
 ].join("\n");
 
 /** Minimal entry shape we read from a session branch. */
@@ -81,7 +81,7 @@ function parsePreviewArgs(
     } else if (token === "help" || token === "--help" || token === "-h") {
       showHelp = true;
     } else {
-      return { error: `未知参数 "${token}"` };
+      return { error: `Unknown argument "${token}"` };
     }
   }
 
@@ -192,18 +192,18 @@ async function openPreview(
   options: { includeThinking: boolean; latestOnly: boolean },
 ): Promise<void> {
   if (!ctx.isIdle()) {
-    ctx.ui.notify("回复尚未结束，请稍后再试", "info");
+    ctx.ui.notify("The reply is still streaming; try again shortly", "info");
     return;
   }
 
   if (ctx.mode !== "tui") {
-    ctx.ui.notify("/preview 需要交互式终端", "error");
+    ctx.ui.notify("/preview requires an interactive terminal", "error");
     return;
   }
 
   const records = buildRecords(() => ctx.sessionManager.getBranch());
   if (records.length === 0) {
-    ctx.ui.notify("尚无可预览的回复", "info");
+    ctx.ui.notify("No reply available to preview yet", "info");
     return;
   }
 
@@ -214,12 +214,12 @@ async function openPreview(
     // #1 = oldest ... #N = newest; list newest-first so #N is on top.
     const labels = records.map((rec, i) => {
       const snippet = openingLineOfRun(rec);
-      const text = snippet ? truncate(snippet, SNIPPET_MAX) : "(无文本)";
+      const text = snippet ? truncate(snippet, SNIPPET_MAX) : "(no text)";
       return `#${i + 1} · ${text}`;
     });
     const ordered = [...labels].reverse();
 
-    const choice = await ctx.ui.select("预览哪条回复：", ordered);
+    const choice = await ctx.ui.select("Preview which reply:", ordered);
     if (choice === undefined) return; // cancelled
 
     const idx = labels.indexOf(choice);
@@ -231,7 +231,7 @@ async function openPreview(
 
   const body = renderRecordBody(record, options.includeThinking);
   if (!body.trim()) {
-    ctx.ui.notify("该回复无可预览内容", "info");
+    ctx.ui.notify("That reply has nothing to preview", "info");
     return;
   }
 
@@ -247,11 +247,11 @@ async function openPreview(
       clearScreen: true,
     });
     if (result.kind === "not-found") {
-      ctx.ui.notify("未找到 nvim，请确认已安装并在 PATH 中", "error");
+      ctx.ui.notify("nvim not found; make sure it is installed and on PATH", "error");
       return;
     }
     if (result.kind === "launch-error") {
-      ctx.ui.notify("/preview 打开 nvim 失败", "error");
+      ctx.ui.notify("/preview failed to open nvim", "error");
       return;
     }
   } finally {
@@ -271,7 +271,7 @@ export default function (pi: ExtensionAPI) {
     handler: async (args, ctx) => {
       const parsed = parsePreviewArgs(args);
       if ("error" in parsed) {
-        ctx.ui.notify(`${parsed.error}，用法：${USAGE}`, "error");
+        ctx.ui.notify(`${parsed.error}; usage: ${USAGE}`, "error");
         ctx.ui.notify(HELP_TEXT, "info");
         return;
       }

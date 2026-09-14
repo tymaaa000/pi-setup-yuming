@@ -23,7 +23,8 @@ import path from "node:path";
 export const GENERATION_TIMEOUT_MS = 120_000;
 
 /** Short argv message; the details (file list + staged diff) are piped on stdin. */
-export const TASK_HEADER = "为以下已暂存文件生成 commit message,文件列表和 staged diff 见 stdin";
+export const TASK_HEADER =
+	"Generate a commit message for the staged files; the file list and staged diff arrive on stdin.";
 
 /**
  * System prompt for the `pi -p` generator. Formerly agents/commit.md
@@ -113,10 +114,10 @@ export function runPiGenerate(opts: {
 
 		const timer = setTimeout(() => {
 			timedOut = true;
-			settle({ message: "", error: "生成超时" });
+			settle({ message: "", error: "Generation timed out" });
 			if (process.platform === "win32" && child.pid) {
 				execFile("taskkill", ["/pid", String(child.pid), "/t", "/f"], () => {
-					settle({ message: "", error: "生成超时" });
+					settle({ message: "", error: "Generation timed out" });
 				});
 			} else {
 				child.kill("SIGKILL");
@@ -140,7 +141,10 @@ export function runPiGenerate(opts: {
 				return;
 			}
 			// pi prints model-resolution failures to stdout; stderr is a fallback.
-			const detail = stdout.trim().split("\n")[0] || stderr.trim().split("\n")[0] || `pi 退出码 ${code}`;
+			const detail =
+				stdout.trim().split("\n")[0] ||
+				stderr.trim().split("\n")[0] ||
+				`pi exited with code ${code}`;
 			settle({ message: "", error: detail });
 		});
 
@@ -200,10 +204,14 @@ export function gitCommit(message: string, cwd: string): string {
 /** The stdin payload for the generator: file list + staged diff. */
 export function buildTask(files: StagedFile[], diff: string): string {
 	const list = files.map((file) => `- ${file.status}  ${file.path}`).join("\n");
-	return `文件列表:\n${list}\n\n<staged diff>\n${diff}`;
+	return `Files:\n${list}\n\n<staged diff>\n${diff}`;
 }
 
-/** Line prefixes that open a model's meta commentary rather than the message. */
+/**
+ * Line prefixes that open a model's meta commentary rather than the message.
+ * Detection must cover model output in any language, so Chinese prefixes stay
+ * alongside the English ones.
+ */
 const META_LINE_PREFIXES = [
 	"如需",
 	"说明",

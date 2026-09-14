@@ -15,7 +15,7 @@ const CHATGPT_PROVIDER = "openai-codex";
 const CHATGPT_USAGE_URL = "https://chatgpt.com/backend-api/wham/usage";
 const CHATGPT_PLACEHOLDER = "ChatGPT: --";
 const CHATGPT_JWT_CLAIM_PATH = "https://api.openai.com/auth";
-/** 预警阈值：任一窗口使用率 ≥ 该值时黄色显示 */
+/** Warning threshold: any window at or above this percentage renders in yellow. */
 const WARNING_PERCENT = 80;
 
 type WhamWindow = {
@@ -39,7 +39,7 @@ function decodeAccountId(token: string): string | undefined {
 	}
 }
 
-/** codex 同款窗口标签：按窗口秒数 ±5% 容差匹配 */
+/** Same window labels as the codex CLI: match window seconds within a ±5% tolerance. */
 function windowLabel(seconds: number): string {
 	const minutes = seconds / 60;
 	const approx = (expected: number) =>
@@ -101,7 +101,7 @@ export const chatgptSource: WidgetSource = {
 				)
 				.map(([, value]) => value),
 		]
-			// 只保留窗口对象，兼容响应中出现的额外窗口（如 monthly_window）。
+			// Keep only window objects so extra windows in the response (monthly_window) work.
 			.filter(isWhamWindow)
 			.map((w) => ({
 				label: windowLabel(w.limit_window_seconds),
@@ -111,7 +111,7 @@ export const chatgptSource: WidgetSource = {
 		if (windows.length === 0) return undefined;
 
 		const usage = windows.map((w) => `${w.label}: ${w.percent}%`).join(" · ");
-		// 显示计划类型（free/plus...），缺失时省略前缀。
+		// Show the plan type (free/plus/...); omit the prefix when it is missing.
 		const plan = data.plan_type?.trim() ? data.plan_type.trim() : undefined;
 		const prefix = plan ? `ChatGPT ${plan}` : "ChatGPT";
 		const resets = windows
@@ -123,6 +123,6 @@ export const chatgptSource: WidgetSource = {
 			.join(" · ");
 		return { line, windows };
 	},
-	// 具体示例：任一窗口使用率 ≥ 80% 进入预警状态（黄色显示）。
+	// Concrete rule: any window at or above 80% enters the warning state (yellow).
 	isWarning: (data) => data.windows.some((w) => w.percent >= WARNING_PERCENT),
 };

@@ -57,13 +57,13 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.registerCommand("commit", {
-		description: "查看已暂存文件,选模型生成 commit message,确认后提交",
+		description: "Review staged files, generate a commit message, and commit on confirmation",
 		handler: async (_args, ctx) => {
 			const shouldQuitAfterCommit = quitAfterStartupCommit;
 			quitAfterStartupCommit = false;
 
 			if (!ctx.hasUI) {
-				ctx.ui.notify("commit 需要交互式界面", "warning");
+				ctx.ui.notify("commit requires an interactive terminal", "warning");
 				return;
 			}
 
@@ -72,11 +72,11 @@ export default function (pi: ExtensionAPI) {
 			try {
 				files = getStagedFiles(ctx.cwd);
 			} catch (err) {
-				ctx.ui.notify(`获取暂存文件失败:${firstLineOf(err)}`, "error");
+				ctx.ui.notify(`Failed to read staged files: ${firstLineOf(err)}`, "error");
 				return;
 			}
 			if (files.length === 0) {
-				ctx.ui.notify("没有已暂存的文件", "info");
+				ctx.ui.notify("No staged files", "info");
 				return;
 			}
 
@@ -84,8 +84,8 @@ export default function (pi: ExtensionAPI) {
 			const listText = files
 				.map((file) => `  ${file.status.padEnd(4)} ${file.path}`)
 				.join("\n");
-			if (!(await ctx.ui.confirm(`提交 ${files.length} 个暂存文件?`, listText))) {
-				ctx.ui.notify("已取消,未提交", "info");
+			if (!(await ctx.ui.confirm(`Commit ${files.length} staged file(s)?`, listText))) {
+				ctx.ui.notify("Cancelled; nothing committed", "info");
 				return;
 			}
 
@@ -94,14 +94,14 @@ export default function (pi: ExtensionAPI) {
 			const first = lastModel ?? currentModelLabel(ctx);
 			const model = await chooseModel(ctx, first, lastModel !== undefined);
 			if (!model) {
-				ctx.ui.notify("已取消,未提交", "info");
+				ctx.ui.notify("Cancelled; nothing committed", "info");
 				return;
 			}
 			writeLastModel(model);
 
 			// 4. Generate (regenerate loops), confirm, then commit.
 			for (;;) {
-				ctx.ui.setStatus("commit", "生成 commit message 中…");
+				ctx.ui.setStatus("commit", "Generating commit message…");
 				let message: string;
 				try {
 					const result = await runPiGenerate({
@@ -111,28 +111,28 @@ export default function (pi: ExtensionAPI) {
 					});
 					if (result.error) throw new Error(result.error);
 					message = stripCodeFences(result.message);
-					if (message.length === 0) throw new Error("生成结果为空");
+					if (message.length === 0) throw new Error("Generation returned an empty message");
 				} catch (err) {
 					ctx.ui.setStatus("commit", undefined);
-					ctx.ui.notify(`生成失败:${firstLineOf(err)}`, "error");
+					ctx.ui.notify(`Generation failed: ${firstLineOf(err)}`, "error");
 					return;
 				}
 				ctx.ui.setStatus("commit", undefined);
 				notify("pi", "commit message done!");
 
 				const action = await chooseAction(ctx, message);
-				if (action === undefined || action === "取消") {
-					ctx.ui.notify("已取消,未提交", "info");
+				if (action === undefined || action === "Cancel") {
+					ctx.ui.notify("Cancelled; nothing committed", "info");
 					return;
 				}
-				if (action === "重新生成") continue;
+				if (action === "Regenerate") continue;
 
 				// 5. Commit directly — message already approved.
 				try {
-					ctx.ui.notify(`提交成功:${gitCommit(message, ctx.cwd)}`, "info");
+					ctx.ui.notify(`Committed: ${gitCommit(message, ctx.cwd)}`, "info");
 					if (shouldQuitAfterCommit) ctx.shutdown();
 				} catch (err) {
-					ctx.ui.notify(`提交失败:${firstLineOf(err)}`, "error");
+					ctx.ui.notify(`Commit failed: ${firstLineOf(err)}`, "error");
 				}
 				return;
 			}

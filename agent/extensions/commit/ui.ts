@@ -20,7 +20,7 @@ import { orderModelOptions } from "./core.ts";
 
 const MAX_MESSAGE_LINES = 15;
 const MAX_VISIBLE = 10;
-const ACTIONS = ["提交", "重新生成", "取消"] as const;
+const ACTIONS = ["Commit", "Regenerate", "Cancel"] as const;
 export type Action = (typeof ACTIONS)[number];
 
 /**
@@ -40,13 +40,13 @@ export async function chooseModel(
 	);
 	const options = orderModelOptions(labels, first, prependIfMissing);
 	if (options.length === 0) {
-		ctx.ui.notify("没有可用的模型", "warning");
+		ctx.ui.notify("No models available", "warning");
 		return undefined;
 	}
 	if (ctx.mode === "tui") {
-		return searchableSelect(ctx, "选择 commit 生成模型", options);
+		return searchableSelect(ctx, "Choose the commit-message model", options);
 	}
-	return ctx.ui.select("选择 commit 生成模型", options);
+	return ctx.ui.select("Choose the commit-message model", options);
 }
 
 /**
@@ -75,7 +75,7 @@ async function searchableSelect(
 			function updateList() {
 				listContainer.clear();
 				if (filtered.length === 0) {
-					listContainer.addChild(new Text(muted("  无匹配模型"), 1, 0));
+					listContainer.addChild(new Text(muted("  No matching models"), 1, 0));
 					return;
 				}
 				const start = Math.max(
@@ -121,7 +121,7 @@ async function searchableSelect(
 			root.addChild(listContainer);
 			root.addChild(new Spacer(1));
 			root.addChild(
-				new Text(dim("输入过滤 • ↑↓ 选择 • 回车确认 • Esc 取消"), 1, 0),
+				new Text(dim("Type to filter • ↑↓ select • Enter confirm • Esc cancel"), 1, 0),
 			);
 			root.addChild(new Spacer(1));
 			root.addChild(new DynamicBorder((s) => accent(s)));
@@ -174,7 +174,7 @@ async function searchableSelect(
 	return result ?? undefined;
 }
 
-/** Confirm the generated message: 提交 / 重新生成 / 取消. */
+/** Confirm the generated message: Commit / Regenerate / Cancel. */
 export async function chooseAction(
 	ctx: ExtensionCommandContext,
 	message: string,
@@ -195,7 +195,7 @@ export async function chooseAction(
 				root.addChild(new Spacer(1));
 				root.addChild(
 					new Text(
-						theme.bold(theme.fg("accent", "生成的 commit message")),
+						theme.bold(theme.fg("accent", "Generated commit message")),
 						1,
 						0,
 					),
@@ -209,7 +209,7 @@ export async function chooseAction(
 				if (lines.length > MAX_MESSAGE_LINES) {
 					root.addChild(
 						new Text(
-							theme.fg("dim", `… 共 ${lines.length} 行,其余已省略`),
+							theme.fg("dim", `… ${lines.length} lines total; the rest is hidden`),
 							1,
 							0,
 						),
@@ -238,7 +238,7 @@ export async function chooseAction(
 	}
 
 	// RPC: custom() is TUI-only, fall back to plain select.
-	return (await ctx.ui.select(`Commit message:\n\n${message}\n\n操作:`, [
+	return (await ctx.ui.select(`Commit message:\n\n${message}\n\nAction:`, [
 		...ACTIONS,
 	])) as Action | undefined;
 }
