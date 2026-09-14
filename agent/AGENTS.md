@@ -39,6 +39,13 @@ This file is loaded in every Pi session. Keep it limited to stable invariants; p
 - Keep the `pi-websearch.json` SearXNG script at `/mnt/d/Linux/searxng-manage.sh`; SearXNG is persistent and must not depend on a Pi session lifecycle.
 - Keep one SearXNG compose source. Before changing search infrastructure, run its status check and an HTTP JSON smoke test.
 
+## Usage Discipline and Periodic Self-Check
+
+- Model routing: keep the main model for complex implementation; route scouting and routine search to a fast tier. Use `low` thinking for exploration, `medium` for implementation, and `high` only for diagnosis, review, or high-risk changes.
+- Keep replies concise and structured; do not repeat tool output. Preserve coherent sessions for cache reuse, and use `/new`, `/fork`, or `/compact` when context turns noisy.
+- Inspect `/metrics` before changing model routing; run `/iterate` periodically to check the trend.
+- At the start of a session, before the first large task, run `bash "/home/tym/pi/agent/skills/u/metrics/scripts/periodic-check.sh" 3` once. `fresh:...` means say nothing. `stale:Ndays` or `no-baseline` means run the metrics report, give a 3-4 line digest plus the top `[you]`/`[pi]` action, ask before changing any config, then save a new baseline.
+
 ## Communication and Change Policy
 
 - Use English in Pi configuration, extensions, Skills, prompts, comments, and runtime UI text. User-facing conversation may remain Chinese.
