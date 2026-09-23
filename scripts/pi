@@ -13,6 +13,9 @@ export PI_CODING_AGENT_DIR="$HOME/pi/agent"
 # Without them the extension silently falls back to ~/.pi/agent.
 export PI_MEMORY_DIR="$HOME/pi/agent/memory"
 export PI_MEMORY_EXIT_SUMMARY=0        # keep exit fast (matches the Windows setting)
+# Semantic/deep search loads the embedding + query-expansion + reranker models on CPU:
+# one `qmd vsearch` takes ~110s, well over the 60s default, so raise the budget.
+export PI_MEMORY_QMD_SEARCH_TIMEOUT_MS=240000
 export PI_HARDWARE_CURSOR=1
 
 exec "$HOME/pi/node/bin/node" --disable-warning=ExperimentalWarning \
