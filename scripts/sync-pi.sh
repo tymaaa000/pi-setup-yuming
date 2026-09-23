@@ -112,7 +112,7 @@ if [ "$CHECK" -eq 1 ]; then
   # bin/ is runtime-owned, so this is a note: the repository keeps a versioned copy of the
   # scripts and the two can legitimately differ until someone copies one over the other.
   script_drift=()
-  for f in "$REPO_DIR/scripts"/*.sh "$REPO_DIR/scripts/pi"; do
+  for f in "$REPO_DIR/scripts"/*; do
     [ -f "$f" ] || continue
     name="$(basename "$f")"
     [ -f "$ROOT/bin/$name" ] || continue
