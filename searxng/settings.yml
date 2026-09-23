@@ -182,10 +182,15 @@ outgoing:
   pool_maxsize: 20
   # See https://www.python-httpx.org/http2/
   enable_http2: true
-  # Route container outbound searches through the host proxy.
-  proxies:
-    all://:
-      - http://host.docker.internal:7897
+  # Route container outbound searches through a proxy only when one is actually
+  # reachable. Verified 2026-09-23: the host proxy port 7897 is gone and the
+  # container reaches the internet directly (bing/google return 200), so no
+  # proxy is set. Setting a dead proxy here makes every engine fail with
+  # httpx.ConnectError -> "HTTP connection error".
+  # To re-enable a proxy, uncomment and point it at the live host port:
+  # proxies:
+  #   all://:
+  #     - http://host.docker.internal:7897
   # uncomment below section if you want to use a custom server certificate
   # see https://www.python-httpx.org/advanced/#changing-the-verification-defaults
   # and https://www.python-httpx.org/compatibility/#ssl-configuration
