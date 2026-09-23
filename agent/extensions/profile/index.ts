@@ -14,25 +14,25 @@ const PROFILES = {
   default: {
     label: "Default",
     provider: "openai-codex",
-    model: "gpt-5.6-luna",
+    model: "gpt-6-sol",
     thinking: "medium",
   },
   research: {
     label: "Research",
     provider: "openai-codex",
-    model: "gpt-5.6-luna",
-    thinking: "medium",
+    model: "gpt-6-astra",
+    thinking: "high",
   },
   review: {
     label: "Review",
     provider: "openai-codex",
-    model: "gpt-5.6-luna",
+    model: "gpt-6-astra",
     thinking: "high",
   },
   driver: {
     label: "Driver",
     provider: "openai-codex",
-    model: "gpt-5.6-luna",
+    model: "gpt-6-astra",
     thinking: "high",
   },
 } as const;

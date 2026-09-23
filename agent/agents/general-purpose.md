@@ -1,6 +1,6 @@
 ---
 description: General-purpose agent for complex, multi-step tasks
-model: openai-codex/gpt-5.6-luna
+model: openai-codex/gpt-6-sol
 thinking: medium
 prompt_mode: append
 ---

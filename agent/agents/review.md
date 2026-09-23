@@ -5,7 +5,7 @@ tools:
   - bash
   - ls
   - grep
-model: openai-codex/gpt-5.6-luna
+model: openai-codex/gpt-6-astra
 thinking: high
 max_turns: 8
 prompt_mode: replace

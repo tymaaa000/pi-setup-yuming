@@ -5,7 +5,7 @@ import profileExtension from "./index.ts";
 function harness() {
   const commands = new Map<string, { handler: Function }>();
   const events = new Map<string, Function>();
-  const model = { provider: "openai-codex", id: "gpt-5.6-luna" };
+  const model = { provider: "openai-codex", id: "gpt-6-astra" };
   const statuses: Record<string, string | undefined> = {};
   const pi: any = {
     registerCommand: (name: string, options: { handler: Function }) => commands.set(name, options),
@@ -27,7 +27,7 @@ test("profile: registers command and switches model/thinking", async () => {
   const h = harness();
   await h.commands.get("profile")!.handler("review", h.ctx);
   assert.equal(h.ctx.model.provider, "openai-codex");
-  assert.equal(h.ctx.model.id, "gpt-5.6-luna");
+  assert.equal(h.ctx.model.id, "gpt-6-astra");
   assert.equal(h.ctx.thinkingLevel, "high");
 });
 

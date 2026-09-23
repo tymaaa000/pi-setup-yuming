@@ -24,6 +24,7 @@ import type {
 import { Text } from "@earendil-works/pi-tui";
 import { chatgptSource } from "./chatgpt.js";
 import { deepseekSource } from "./deepseek.js";
+import { failureReason } from "./failure.js";
 import {
 	HttpError,
 	INTERVAL_MS,
@@ -84,17 +85,11 @@ export default function (pi: ExtensionAPI) {
 			return;
 		}
 		// Without a cache, include a short failure reason for diagnosis
-		// (timeout, HTTP 403, TypeError: fetch failed, and so on).
-		const reason =
-			err instanceof HttpError
-				? `HTTP ${err.status}`
-				: err instanceof Error &&
-						(err.name === "AbortError" || err.name === "TimeoutError")
-					? "timeout"
-					: err instanceof Error
-						? `${err.name}: ${err.message}`.slice(0, 40)
-						: "error";
-		setLine({ line: `${source.placeholder} (${reason})`, windows: [] });
+		// (timeout, HTTP 403, TypeError: fetch failed [ECONNRESET], and so on).
+		setLine({
+			line: `${source.placeholder} (${failureReason(err)})`,
+			windows: [],
+		});
 	}
 
 	function stop() {

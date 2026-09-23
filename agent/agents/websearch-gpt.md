@@ -1,7 +1,7 @@
 ---
 description: GPT-native web search specialist — searches, verifies, and synthesizes current information with web_search and web_fetch.
 tools: read, web_search, web_fetch
-model: openai-codex/gpt-5.6-luna
+model: openai-codex/gpt-6-luna
 thinking: medium
 prompt_mode: replace
 ---

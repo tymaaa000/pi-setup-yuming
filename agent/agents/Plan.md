@@ -1,7 +1,7 @@
 ---
 description: Plan and design the approach before implementation
 enabled: false
-model: openai-codex/gpt-5.6-luna
+model: openai-codex/gpt-6-astra
 thinking: high
 ---
 
