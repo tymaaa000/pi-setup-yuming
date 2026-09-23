@@ -1,0 +1,9 @@
+{
+  "name": "pi-skill-visibility",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "test": "bash ../../../scripts/test-all.sh ."
+  }
+}

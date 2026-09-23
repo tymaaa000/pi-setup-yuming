@@ -1,31 +1,50 @@
+/**
+ * skill-visibility — keep configured skills out of the model-visible skill list.
+ *
+ * Pi renders every discovered skill (name, description, location) into the system prompt.
+ * This extension marks skills configured in the agent-dir settings.json under `skillful`
+ * as `disableModelInvocation`, so Pi leaves them out of the prompt while their
+ * `/skill:<name>` commands keep working.
+ *
+ * Config:
+ *   {
+ *     "skillful": {
+ *       "hideAllSkills": true,
+ *       "hiddenSkills": ["metrics", "iterate"]
+ *     }
+ *   }
+ *
+ * The handler mutates the mutable `systemPromptOptions.skills` exposed by
+ * `before_agent_start` instead of rewriting the rendered prompt text: Pi re-renders the
+ * prompt sections from those options, so this keeps working when the prompt format
+ * changes and preserves Pi's section-delta behaviour.
+ *
+ * Regression note: the previous version replaced the rendered prompt with a
+ * `\n\n`-anchored regex. Pi renders the section as `<skills>\nThe following skills…`, so
+ * the pattern never matched and every hidden skill stayed in the prompt.
+ */
+
 import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { type ExtensionAPI, getAgentDir } from "@earendil-works/pi-coding-agent";
 import {
-	type ExtensionAPI,
-	formatSkillsForPrompt,
-	getAgentDir,
-	type Skill,
-} from "@earendil-works/pi-coding-agent";
+	applySkillVisibility,
+	NO_HIDDEN_SKILLS,
+	parseSkillVisibilityConfig,
+	type SkillVisibilityConfig,
+} from "./core.ts";
 
-const SKILLS_SECTION_PATTERN =
-	/\n\nThe following skills provide specialized instructions for specific tasks\.[\s\S]*?<\/available_skills>/;
-
-interface SkillVisibilityConfig {
-	hideAllSkills: boolean;
-	hiddenSkills: Set<string>;
-}
+export {
+	applySkillVisibility,
+	normalizeSkillName,
+	parseSkillVisibilityConfig,
+} from "./core.ts";
+export type { SkillVisibilityConfig } from "./core.ts";
 
 let cachedMtime = -1;
-let cachedConfig: SkillVisibilityConfig = {
-	hideAllSkills: false,
-	hiddenSkills: new Set(),
-};
+let cachedConfig: SkillVisibilityConfig = NO_HIDDEN_SKILLS;
 
-function normalizeSkillName(value: string): string {
-	return value.trim().replace(/^skill:/, "");
-}
-
-function readConfig(): SkillVisibilityConfig {
+export function readConfig(): SkillVisibilityConfig {
 	const filePath = join(getAgentDir(), "settings.json");
 	let mtime = -1;
 	try {
@@ -36,56 +55,27 @@ function readConfig(): SkillVisibilityConfig {
 	if (mtime === cachedMtime) return cachedConfig;
 
 	try {
-		const document = JSON.parse(readFileSync(filePath, "utf8")) as {
-			skillful?: { hideAllSkills?: unknown; hiddenSkills?: unknown };
-		};
-		const skillful = document.skillful;
-		const hiddenSkills = Array.isArray(skillful?.hiddenSkills)
-			? skillful.hiddenSkills.filter(
-					(name): name is string => typeof name === "string",
-				)
-			: [];
-		cachedConfig = {
-			hideAllSkills: skillful?.hideAllSkills === true,
-			hiddenSkills: new Set(hiddenSkills.map(normalizeSkillName)),
-		};
-		cachedMtime = mtime;
+		cachedConfig = parseSkillVisibilityConfig(
+			JSON.parse(readFileSync(filePath, "utf8")),
+		);
 	} catch {
-		cachedConfig = { hideAllSkills: false, hiddenSkills: new Set() };
-		cachedMtime = mtime;
+		cachedConfig = NO_HIDDEN_SKILLS;
 	}
+	cachedMtime = mtime;
 	return cachedConfig;
 }
 
-export function replaceHiddenSkills(
-	systemPrompt: string,
-	skills: Skill[],
-	config: SkillVisibilityConfig,
-): string | undefined {
-	if (!config.hideAllSkills && config.hiddenSkills.size === 0) return undefined;
-
-	const filteredSkills = skills.map((skill) => {
-		const hidden = config.hideAllSkills || config.hiddenSkills.has(skill.name);
-		return hidden ? { ...skill, disableModelInvocation: true } : skill;
-	});
-	const next = systemPrompt.replace(
-		SKILLS_SECTION_PATTERN,
-		formatSkillsForPrompt(filteredSkills),
-	);
-	return next === systemPrompt ? undefined : next;
-}
-
-export default function skillVisibility(pi: ExtensionAPI) {
+export function registerSkillVisibility(
+	pi: ExtensionAPI,
+	loadConfig: () => SkillVisibilityConfig = readConfig,
+): void {
 	pi.on("before_agent_start", (event) => {
 		const options = event.systemPromptOptions;
 		if (!options.skills?.length) return;
 
-		const config = readConfig();
-		const replacement = replaceHiddenSkills(
-			event.systemPrompt,
-			options.skills,
-			config,
-		);
-		return replacement ? { systemPrompt: replacement } : undefined;
+		const skills = applySkillVisibility(options.skills, loadConfig());
+		if (skills) options.skills = skills;
 	});
 }
+
+export default registerSkillVisibility;
