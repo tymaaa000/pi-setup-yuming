@@ -1,0 +1,29 @@
+#!/bin/sh
+# qmd shim — runtime-owned, mirrored at pi-setup/scripts/qmd.
+#
+# qmd runs llama.cpp through node-llama-cpp. Its prebuilt binaries are CUDA 13 builds, which
+# need the CUDA 13 runtime libraries plus a Windows driver >= 580. The runtime libraries are
+# installed under ~/pi/cuda13/lib (NVIDIA redist, no root required). With an older driver
+# llama.cpp only prints a "falling back to CPU" warning, so the CUDA library path and backend
+# are exported only after probing the driver version.
+set -eu
+
+REAL_QMD="${PI_QMD_REAL:-$HOME/pi/node/bin/qmd}"
+CUDA_LIB="$HOME/pi/cuda13/lib"
+
+if [ -d "$CUDA_LIB" ]; then
+  driver="$(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -n 1 | tr -d ' \r')"
+  major="${driver%%.*}"
+  case "$major" in
+    '' | *[!0-9]*) ;;
+    *)
+      if [ "$major" -ge 580 ]; then
+        LD_LIBRARY_PATH="$CUDA_LIB${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+        export LD_LIBRARY_PATH
+        export QMD_LLAMA_GPU=cuda
+      fi
+      ;;
+  esac
+fi
+
+exec "$REAL_QMD" "$@"

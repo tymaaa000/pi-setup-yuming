@@ -56,7 +56,10 @@ in the runtime copy is **deleted** on the next sync, so anything worth keeping m
 back into this repository first.
 
 `~/pi/bin` is runtime-owned: `sync-pi.sh --check` prints a note when `bin/` and `scripts/`
-diverge, and `scripts/README.md` documents how to copy between them.
+diverge, and `scripts/README.md` documents how to copy between them. Besides the sync helpers,
+`scripts/qmd` is a shim that gives qmd the CUDA 13 runtime from `~/pi/cuda13/lib` and selects
+the CUDA backend once the Windows driver is >= 580; on older drivers it stays on CPU so
+llama.cpp does not print a fallback warning.
 
 ## Extensions
 
