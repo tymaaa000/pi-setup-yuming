@@ -32,7 +32,10 @@ test("buildConfigMap: keeps valid entries, lowercases names, trims model", () =>
     worse: "opencode-go/deepseek-v4-flash", // string entry — skip
     "x/y": { model: "p/m", thinking: "bogus" }, // invalid thinking dropped
   });
-  assert.deepEqual(map.get("explore"), { model: "opencode-go/deepseek-v4-flash", thinking: "max" });
+  assert.deepEqual(map.get("explore"), {
+    model: "opencode-go/deepseek-v4-flash",
+    thinking: "max",
+  });
   assert.deepEqual(map.get("commit"), { model: "opencode-go/deepseek-v4-pro" });
   assert.equal(map.has("bad"), false);
   assert.equal(map.has("worse"), false);
@@ -53,13 +56,18 @@ test("writeConfigMap: round-trip keeps model and thinking", () => {
     commit: { model: "opencode-go/deepseek-v4-pro" },
   });
   writeConfigMap(dir, map);
-  const raw = JSON.parse(fs.readFileSync(path.join(dir, "subagent-model.json"), "utf8"));
+  const raw = JSON.parse(
+    fs.readFileSync(path.join(dir, "subagent-model.json"), "utf8"),
+  );
   assert.deepEqual(raw, {
     explore: { model: "opencode-go/deepseek-v4-flash", thinking: "max" },
     commit: { model: "opencode-go/deepseek-v4-pro" },
   });
   const reread = readConfigMap(dir);
-  assert.deepEqual(reread.get("explore"), { model: "opencode-go/deepseek-v4-flash", thinking: "max" });
+  assert.deepEqual(reread.get("explore"), {
+    model: "opencode-go/deepseek-v4-flash",
+    thinking: "max",
+  });
 });
 
 function agentsDir(base: string, files: Record<string, string>): string {
@@ -113,7 +121,10 @@ test("listEnabledAgents: built-in Plan disabled by same-named file", () => {
   const names = listEnabledAgents(dir, tmpDir());
   assert.ok(names.includes("Explore"));
   assert.ok(names.includes("general-purpose"));
-  assert.ok(!names.includes("Plan"), "built-in Plan must be filtered by enabled: false");
+  assert.ok(
+    !names.includes("Plan"),
+    "built-in Plan must be filtered by enabled: false",
+  );
 });
 
 test("listEnabledAgents: project file re-enables a globally disabled built-in", () => {

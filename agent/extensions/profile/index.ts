@@ -2,7 +2,10 @@
  * Switch the current session between explicit model/thinking profiles.
  * Usage: /profile [fast|default|research|review|driver]
  */
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type {
+  ExtensionAPI,
+  ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
 
 const PROFILES = {
   fast: {
@@ -41,7 +44,10 @@ type ProfileName = keyof typeof PROFILES;
 
 function description(): string {
   return Object.entries(PROFILES)
-    .map(([name, profile]) => `${name}: ${profile.label} (${profile.model}, ${profile.thinking})`)
+    .map(
+      ([name, profile]) =>
+        `${name}: ${profile.label} (${profile.model}, ${profile.thinking})`,
+    )
     .join("\n");
 }
 
@@ -70,20 +76,29 @@ export default function profileExtension(pi: ExtensionAPI): void {
       const profile = PROFILES[name];
       const model = ctx.modelRegistry.find(profile.provider, profile.model);
       if (!model) {
-        ctx.ui.notify(`Model not found: ${profile.provider}/${profile.model}`, "error");
+        ctx.ui.notify(
+          `Model not found: ${profile.provider}/${profile.model}`,
+          "error",
+        );
         return;
       }
 
       const success = await pi.setModel(model);
       if (!success) {
-        ctx.ui.notify(`Model unavailable or credentials missing: ${profile.provider}/${profile.model}`, "error");
+        ctx.ui.notify(
+          `Model unavailable or credentials missing: ${profile.provider}/${profile.model}`,
+          "error",
+        );
         return;
       }
       pi.setThinkingLevel(profile.thinking);
       active = name;
       setStatus(ctx, name);
 
-      ctx.ui.notify(`Switched to ${profile.label}: ${profile.provider}/${profile.model} · ${profile.thinking}`, "info");
+      ctx.ui.notify(
+        `Switched to ${profile.label}: ${profile.provider}/${profile.model} · ${profile.thinking}`,
+        "info",
+      );
     },
   });
 

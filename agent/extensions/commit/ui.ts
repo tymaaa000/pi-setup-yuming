@@ -6,15 +6,18 @@
  * logic) and index.ts (command flow).
  */
 
-import { DynamicBorder, type ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import {
-	Container,
-	fuzzyFilter,
-	Input,
-	SelectList,
-	type SelectListTheme,
-	Spacer,
-	Text,
+  DynamicBorder,
+  type ExtensionCommandContext,
+} from "@earendil-works/pi-coding-agent";
+import {
+  Container,
+  fuzzyFilter,
+  Input,
+  SelectList,
+  type SelectListTheme,
+  Spacer,
+  Text,
 } from "@earendil-works/pi-tui";
 import { orderModelOptions } from "./core.ts";
 
@@ -30,23 +33,23 @@ export type Action = (typeof ACTIONS)[number];
  * (used for the remembered last model, which must always lead).
  */
 export async function chooseModel(
-	ctx: ExtensionCommandContext,
-	first?: string,
-	prependIfMissing = false,
+  ctx: ExtensionCommandContext,
+  first?: string,
+  prependIfMissing = false,
 ): Promise<string | undefined> {
-	const registry = ctx.modelRegistry;
-	const labels = (registry.getAvailable?.() ?? registry.getAll()).map(
-		(m) => `${m.provider}/${m.id}`,
-	);
-	const options = orderModelOptions(labels, first, prependIfMissing);
-	if (options.length === 0) {
-		ctx.ui.notify("No models available", "warning");
-		return undefined;
-	}
-	if (ctx.mode === "tui") {
-		return searchableSelect(ctx, "Choose the commit-message model", options);
-	}
-	return ctx.ui.select("Choose the commit-message model", options);
+  const registry = ctx.modelRegistry;
+  const labels = (registry.getAvailable?.() ?? registry.getAll()).map(
+    (m) => `${m.provider}/${m.id}`,
+  );
+  const options = orderModelOptions(labels, first, prependIfMissing);
+  if (options.length === 0) {
+    ctx.ui.notify("No models available", "warning");
+    return undefined;
+  }
+  if (ctx.mode === "tui") {
+    return searchableSelect(ctx, "Choose the commit-message model", options);
+  }
+  return ctx.ui.select("Choose the commit-message model", options);
 }
 
 /**
@@ -54,191 +57,205 @@ export async function chooseModel(
  * Mirrors pi's own /model UX; filtering is pi-tui's fuzzyFilter.
  */
 async function searchableSelect(
-	ctx: ExtensionCommandContext,
-	title: string,
-	options: string[],
+  ctx: ExtensionCommandContext,
+  title: string,
+  options: string[],
 ): Promise<string | undefined> {
-	const result = await ctx.ui.custom<string | undefined>(
-		(tui, theme, keybindings, done) => {
-			const root = new Container();
-			const searchInput = new Input();
-			const listContainer = new Container();
-			let filtered = options.slice();
-			let selectedIndex = 0;
-			let focused = false;
+  const result = await ctx.ui.custom<string | undefined>(
+    (tui, theme, keybindings, done) => {
+      const root = new Container();
+      const searchInput = new Input();
+      const listContainer = new Container();
+      let filtered = options.slice();
+      let selectedIndex = 0;
+      let focused = false;
 
-			const accent = (t: string) => theme.fg("accent", t);
-			const muted = (t: string) => theme.fg("muted", t);
-			const dim = (t: string) => theme.fg("dim", t);
-			const text = (t: string) => theme.fg("text", t);
+      const accent = (t: string) => theme.fg("accent", t);
+      const muted = (t: string) => theme.fg("muted", t);
+      const dim = (t: string) => theme.fg("dim", t);
+      const text = (t: string) => theme.fg("text", t);
 
-			function updateList() {
-				listContainer.clear();
-				if (filtered.length === 0) {
-					listContainer.addChild(new Text(muted("  No matching models"), 1, 0));
-					return;
-				}
-				const start = Math.max(
-					0,
-					Math.min(
-						selectedIndex - Math.floor(MAX_VISIBLE / 2),
-						filtered.length - MAX_VISIBLE,
-					),
-				);
-				const end = Math.min(start + MAX_VISIBLE, filtered.length);
-				for (let i = start; i < end; i++) {
-					const item = filtered[i]!;
-					const line =
-						i === selectedIndex ? accent(`→ ${item}`) : `  ${text(item)}`;
-					listContainer.addChild(new Text(line, 1, 0));
-				}
-				if (start > 0 || end < filtered.length) {
-					listContainer.addChild(
-						new Text(muted(`  (${selectedIndex + 1}/${filtered.length})`), 1, 0),
-					);
-				}
-			}
+      function updateList() {
+        listContainer.clear();
+        if (filtered.length === 0) {
+          listContainer.addChild(new Text(muted("  No matching models"), 1, 0));
+          return;
+        }
+        const start = Math.max(
+          0,
+          Math.min(
+            selectedIndex - Math.floor(MAX_VISIBLE / 2),
+            filtered.length - MAX_VISIBLE,
+          ),
+        );
+        const end = Math.min(start + MAX_VISIBLE, filtered.length);
+        for (let i = start; i < end; i++) {
+          const item = filtered[i]!;
+          const line =
+            i === selectedIndex ? accent(`→ ${item}`) : `  ${text(item)}`;
+          listContainer.addChild(new Text(line, 1, 0));
+        }
+        if (start > 0 || end < filtered.length) {
+          listContainer.addChild(
+            new Text(
+              muted(`  (${selectedIndex + 1}/${filtered.length})`),
+              1,
+              0,
+            ),
+          );
+        }
+      }
 
-			function applyFilter() {
-				filtered = fuzzyFilter(options, searchInput.getValue(), (s) => s);
-				selectedIndex = Math.min(selectedIndex, Math.max(0, filtered.length - 1));
-				updateList();
-			}
+      function applyFilter() {
+        filtered = fuzzyFilter(options, searchInput.getValue(), (s) => s);
+        selectedIndex = Math.min(
+          selectedIndex,
+          Math.max(0, filtered.length - 1),
+        );
+        updateList();
+      }
 
-			function pick() {
-				const chosen = filtered[selectedIndex];
-				if (chosen !== undefined) done(chosen);
-			}
+      function pick() {
+        const chosen = filtered[selectedIndex];
+        if (chosen !== undefined) done(chosen);
+      }
 
-			searchInput.onSubmit = () => pick();
+      searchInput.onSubmit = () => pick();
 
-			root.addChild(new DynamicBorder((s) => accent(s)));
-			root.addChild(new Spacer(1));
-			root.addChild(new Text(accent(theme.bold(title)), 1, 0));
-			root.addChild(new Spacer(1));
-			root.addChild(searchInput);
-			root.addChild(new Spacer(1));
-			root.addChild(listContainer);
-			root.addChild(new Spacer(1));
-			root.addChild(
-				new Text(dim("Type to filter • ↑↓ select • Enter confirm • Esc cancel"), 1, 0),
-			);
-			root.addChild(new Spacer(1));
-			root.addChild(new DynamicBorder((s) => accent(s)));
+      root.addChild(new DynamicBorder((s) => accent(s)));
+      root.addChild(new Spacer(1));
+      root.addChild(new Text(accent(theme.bold(title)), 1, 0));
+      root.addChild(new Spacer(1));
+      root.addChild(searchInput);
+      root.addChild(new Spacer(1));
+      root.addChild(listContainer);
+      root.addChild(new Spacer(1));
+      root.addChild(
+        new Text(
+          dim("Type to filter • ↑↓ select • Enter confirm • Esc cancel"),
+          1,
+          0,
+        ),
+      );
+      root.addChild(new Spacer(1));
+      root.addChild(new DynamicBorder((s) => accent(s)));
 
-			updateList();
+      updateList();
 
-			return {
-				get focused() {
-					return focused;
-				},
-				set focused(value: boolean) {
-					focused = value;
-					searchInput.focused = value;
-				},
-				render: (w: number) => root.render(w),
-				invalidate: () => root.invalidate(),
-				handleInput: (data: string) => {
-					if (keybindings.matches(data, "tui.select.up")) {
-						if (filtered.length === 0) return;
-						selectedIndex =
-							selectedIndex === 0 ? filtered.length - 1 : selectedIndex - 1;
-						updateList();
-						tui.requestRender();
-						return;
-					}
-					if (keybindings.matches(data, "tui.select.down")) {
-						if (filtered.length === 0) return;
-						selectedIndex =
-							selectedIndex === filtered.length - 1 ? 0 : selectedIndex + 1;
-						updateList();
-						tui.requestRender();
-						return;
-					}
-					if (keybindings.matches(data, "tui.select.confirm")) {
-						pick();
-						return;
-					}
-					if (keybindings.matches(data, "tui.select.cancel")) {
-						done(undefined);
-						return;
-					}
-					searchInput.handleInput(data);
-					applyFilter();
-					tui.requestRender();
-				},
-			};
-		},
-	);
+      return {
+        get focused() {
+          return focused;
+        },
+        set focused(value: boolean) {
+          focused = value;
+          searchInput.focused = value;
+        },
+        render: (w: number) => root.render(w),
+        invalidate: () => root.invalidate(),
+        handleInput: (data: string) => {
+          if (keybindings.matches(data, "tui.select.up")) {
+            if (filtered.length === 0) return;
+            selectedIndex =
+              selectedIndex === 0 ? filtered.length - 1 : selectedIndex - 1;
+            updateList();
+            tui.requestRender();
+            return;
+          }
+          if (keybindings.matches(data, "tui.select.down")) {
+            if (filtered.length === 0) return;
+            selectedIndex =
+              selectedIndex === filtered.length - 1 ? 0 : selectedIndex + 1;
+            updateList();
+            tui.requestRender();
+            return;
+          }
+          if (keybindings.matches(data, "tui.select.confirm")) {
+            pick();
+            return;
+          }
+          if (keybindings.matches(data, "tui.select.cancel")) {
+            done(undefined);
+            return;
+          }
+          searchInput.handleInput(data);
+          applyFilter();
+          tui.requestRender();
+        },
+      };
+    },
+  );
 
-	return result ?? undefined;
+  return result ?? undefined;
 }
 
 /** Confirm the generated message: Commit / Regenerate / Cancel. */
 export async function chooseAction(
-	ctx: ExtensionCommandContext,
-	message: string,
+  ctx: ExtensionCommandContext,
+  message: string,
 ): Promise<Action | undefined> {
-	if (ctx.mode === "tui") {
-		return ctx.ui.custom<Action | undefined>(
-			(_tui, theme, _keybindings, done) => {
-				const root = new Container();
-				const listTheme: SelectListTheme = {
-					selectedPrefix: (t) => theme.fg("accent", t),
-					selectedText: (t) => theme.fg("accent", t),
-					description: (t) => theme.fg("muted", t),
-					scrollInfo: (t) => theme.fg("dim", t),
-					noMatch: (t) => theme.fg("dim", t),
-				};
+  if (ctx.mode === "tui") {
+    return ctx.ui.custom<Action | undefined>(
+      (_tui, theme, _keybindings, done) => {
+        const root = new Container();
+        const listTheme: SelectListTheme = {
+          selectedPrefix: (t) => theme.fg("accent", t),
+          selectedText: (t) => theme.fg("accent", t),
+          description: (t) => theme.fg("muted", t),
+          scrollInfo: (t) => theme.fg("dim", t),
+          noMatch: (t) => theme.fg("dim", t),
+        };
 
-				root.addChild(new DynamicBorder((s) => theme.fg("accent", s)));
-				root.addChild(new Spacer(1));
-				root.addChild(
-					new Text(
-						theme.bold(theme.fg("accent", "Generated commit message")),
-						1,
-						0,
-					),
-				);
-				root.addChild(new Spacer(1));
+        root.addChild(new DynamicBorder((s) => theme.fg("accent", s)));
+        root.addChild(new Spacer(1));
+        root.addChild(
+          new Text(
+            theme.bold(theme.fg("accent", "Generated commit message")),
+            1,
+            0,
+          ),
+        );
+        root.addChild(new Spacer(1));
 
-				const lines = message.split("\n");
-				for (const line of lines.slice(0, MAX_MESSAGE_LINES)) {
-					root.addChild(new Text(theme.fg("text", line), 1, 0));
-				}
-				if (lines.length > MAX_MESSAGE_LINES) {
-					root.addChild(
-						new Text(
-							theme.fg("dim", `… ${lines.length} lines total; the rest is hidden`),
-							1,
-							0,
-						),
-					);
-				}
+        const lines = message.split("\n");
+        for (const line of lines.slice(0, MAX_MESSAGE_LINES)) {
+          root.addChild(new Text(theme.fg("text", line), 1, 0));
+        }
+        if (lines.length > MAX_MESSAGE_LINES) {
+          root.addChild(
+            new Text(
+              theme.fg(
+                "dim",
+                `… ${lines.length} lines total; the rest is hidden`,
+              ),
+              1,
+              0,
+            ),
+          );
+        }
 
-				root.addChild(new Spacer(1));
-				const list = new SelectList(
-					ACTIONS.map((action) => ({ value: action, label: action })),
-					ACTIONS.length,
-					listTheme,
-				);
-				list.onSelect = (item) => done(item.value as Action);
-				list.onCancel = () => done(undefined);
-				root.addChild(list);
-				root.addChild(new Spacer(1));
-				root.addChild(new DynamicBorder((s) => theme.fg("accent", s)));
+        root.addChild(new Spacer(1));
+        const list = new SelectList(
+          ACTIONS.map((action) => ({ value: action, label: action })),
+          ACTIONS.length,
+          listTheme,
+        );
+        list.onSelect = (item) => done(item.value as Action);
+        list.onCancel = () => done(undefined);
+        root.addChild(list);
+        root.addChild(new Spacer(1));
+        root.addChild(new DynamicBorder((s) => theme.fg("accent", s)));
 
-				return {
-					render: (width: number) => root.render(width),
-					invalidate: () => root.invalidate(),
-					handleInput: (data: string) => list.handleInput(data),
-				};
-			},
-		);
-	}
+        return {
+          render: (width: number) => root.render(width),
+          invalidate: () => root.invalidate(),
+          handleInput: (data: string) => list.handleInput(data),
+        };
+      },
+    );
+  }
 
-	// RPC: custom() is TUI-only, fall back to plain select.
-	return (await ctx.ui.select(`Commit message:\n\n${message}\n\nAction:`, [
-		...ACTIONS,
-	])) as Action | undefined;
+  // RPC: custom() is TUI-only, fall back to plain select.
+  return (await ctx.ui.select(`Commit message:\n\n${message}\n\nAction:`, [
+    ...ACTIONS,
+  ])) as Action | undefined;
 }

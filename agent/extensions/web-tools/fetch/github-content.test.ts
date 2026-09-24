@@ -61,7 +61,9 @@ test("generateCloneContent renders directories and binary files without reading 
   }
 });
 
-test("resolveWithinRepo rejects traversal and symlink escapes", { skip: process.platform === "win32" }, async () => {
+test("resolveWithinRepo rejects traversal and symlink escapes", {
+  skip: process.platform === "win32",
+}, async () => {
   const root = await mkdtemp(join(tmpdir(), "pi-web-tools-repo-"));
   const outside = await mkdtemp(join(tmpdir(), "pi-web-tools-outside-"));
   try {

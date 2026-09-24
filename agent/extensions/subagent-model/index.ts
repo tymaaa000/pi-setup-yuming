@@ -12,12 +12,15 @@
  * Configure: /subagent-model (agent → model → thinking, hot re-read)
  */
 
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type {
+  ExtensionAPI,
+  ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
 import {
-  getAgentDir,
-  readConfigMap,
-  listEnabledAgents,
   type ConfigMap,
+  getAgentDir,
+  listEnabledAgents,
+  readConfigMap,
 } from "./config.js";
 import { runSubagentModelUi } from "./ui.js";
 
@@ -34,7 +37,11 @@ export default function (pi: ExtensionAPI) {
   // Unconfigured agents are left untouched (frontmatter/inheritance fallback).
   pi.on("tool_call", (event) => {
     if (event.toolName !== "subagent") return;
-    const input = event.input as { subagent_type?: unknown; model?: unknown; thinking?: unknown } | null;
+    const input = event.input as {
+      subagent_type?: unknown;
+      model?: unknown;
+      thinking?: unknown;
+    } | null;
     if (!input || typeof input.subagent_type !== "string") return;
     const pinned = config.get(input.subagent_type.toLowerCase());
     if (!pinned) return;
@@ -50,14 +57,17 @@ export default function (pi: ExtensionAPI) {
       const available =
         ctx.modelRegistry.getAvailable?.() ?? ctx.modelRegistry.getAll();
       const canSearch =
-        ctx.mode === "tui" && typeof (ctx.ui as { custom?: unknown }).custom === "function";
+        ctx.mode === "tui" &&
+        typeof (ctx.ui as { custom?: unknown }).custom === "function";
       await runSubagentModelUi({
         ui: {
           select: (title, options) => ctx.ui.select(title, options),
           // Searchable picker only in TUI (custom component); RPC/print fall back to select.
           selectSearchable: canSearch
             ? async (title, options) => {
-                const { showSearchableSelect } = await import("./searchable-select.js");
+                const { showSearchableSelect } = await import(
+                  "./searchable-select.js"
+                );
                 return showSearchableSelect(ctx.ui, title, options);
               }
             : undefined,

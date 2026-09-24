@@ -247,7 +247,10 @@ async function openPreview(
       clearScreen: true,
     });
     if (result.kind === "not-found") {
-      ctx.ui.notify("nvim not found; make sure it is installed and on PATH", "error");
+      ctx.ui.notify(
+        "nvim not found; make sure it is installed and on PATH",
+        "error",
+      );
       return;
     }
     if (result.kind === "launch-error") {

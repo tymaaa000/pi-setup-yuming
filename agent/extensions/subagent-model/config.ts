@@ -16,7 +16,15 @@ import os from "node:os";
 import path from "node:path";
 
 /** Pi thinking levels a pin can use (mirrors VALID_THINKING_LEVELS). */
-export const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
+export const THINKING_LEVELS = [
+  "off",
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+] as const;
 
 /** Built-in agents shipped by pi-subagents (always enabled, name only). */
 const BUILTIN_AGENT_NAMES = ["general-purpose", "Explore", "Plan"] as const;
@@ -36,7 +44,8 @@ export type ConfigMap = Map<string, SubagentConfig>;
 export function getAgentDir(): string {
   const configured = process.env.PI_CODING_AGENT_DIR;
   if (configured === "~") return os.homedir();
-  if (configured?.startsWith("~/")) return path.join(os.homedir(), configured.slice(2));
+  if (configured?.startsWith("~/"))
+    return path.join(os.homedir(), configured.slice(2));
   return configured || path.join(os.homedir(), ".pi", "agent");
 }
 
@@ -57,10 +66,14 @@ export function buildConfigMap(raw: Record<string, unknown>): ConfigMap {
   const validLevels = new Set<string>(THINKING_LEVELS);
   for (const [name, entry] of Object.entries(raw)) {
     if (!entry || typeof entry !== "object") continue;
-    const { model, thinking } = entry as { model?: unknown; thinking?: unknown };
+    const { model, thinking } = entry as {
+      model?: unknown;
+      thinking?: unknown;
+    };
     if (typeof model !== "string" || !splitQualified(model.trim())) continue;
     const config: SubagentConfig = { model: model.trim() };
-    if (typeof thinking === "string" && validLevels.has(thinking)) config.thinking = thinking;
+    if (typeof thinking === "string" && validLevels.has(thinking))
+      config.thinking = thinking;
     map.set(name.trim().toLowerCase(), config);
   }
   return map;
@@ -71,7 +84,8 @@ export function readConfigMap(agentDir: string = getAgentDir()): ConfigMap {
   try {
     const raw = fs.readFileSync(configPath(agentDir), "utf8");
     const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return new Map();
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+      return new Map();
     return buildConfigMap(parsed as Record<string, unknown>);
   } catch {
     return new Map();
@@ -84,7 +98,11 @@ export function writeConfigMap(agentDir: string, map: ConfigMap): void {
   for (const [name, config] of map) {
     out[name] = config.thinking ? { ...config } : { model: config.model };
   }
-  fs.writeFileSync(configPath(agentDir), JSON.stringify(out, null, 2) + "\n", "utf8");
+  fs.writeFileSync(
+    configPath(agentDir),
+    JSON.stringify(out, null, 2) + "\n",
+    "utf8",
+  );
 }
 
 /** Agent names discovered from built-ins + global + project dirs (enabled only). */

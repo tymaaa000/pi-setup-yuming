@@ -2,20 +2,11 @@
   "timeout": 20000,
   "servers": {
     "ruff": {
-      "command": [
-        "/home/tym/.local/bin/ruff",
-        "server"
-      ],
-      "extensions": [
-        ".py",
-        ".pyi"
-      ]
+      "command": ["/home/tym/.local/bin/ruff", "server"],
+      "extensions": [".py", ".pyi"]
     },
     "biome": {
-      "command": [
-        "/home/tym/pi/node/bin/biome",
-        "lsp-proxy"
-      ],
+      "command": ["/home/tym/pi/node/bin/biome", "lsp-proxy"],
       "extensions": [
         ".js",
         ".jsx",

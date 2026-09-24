@@ -21,24 +21,24 @@ export type Registry = ExtensionContext["modelRegistry"];
 
 /** Result of one fetch: the display line plus window data used by isWarning. */
 export type UsageData = {
-	line: string;
-	windows: { label: string; percent: number }[];
-	/** Balance amounts per currency (for example the DeepSeek balance), used by isWarning. */
-	amounts?: number[];
+  line: string;
+  windows: { label: string; percent: number }[];
+  /** Balance amounts per currency (for example the DeepSeek balance), used by isWarning. */
+  amounts?: number[];
 };
 
 /** One source per provider; the widget is mutually exclusive and follows the model provider. */
 export interface WidgetSource {
-	provider: string;
-	/** Placeholder line for the first load or when no data is available. */
-	placeholder: string;
-	fetch(apiKey: string, signal: AbortSignal): Promise<UsageData | undefined>;
-	/** Reached a warning state: render in yellow (each source decides). */
-	isWarning(data: UsageData): boolean;
+  provider: string;
+  /** Placeholder line for the first load or when no data is available. */
+  placeholder: string;
+  fetch(apiKey: string, signal: AbortSignal): Promise<UsageData | undefined>;
+  /** Reached a warning state: render in yellow (each source decides). */
+  isWarning(data: UsageData): boolean;
 }
 
 export class HttpError extends Error {
-	constructor(public status: number) {
-		super(`HTTP ${status}`);
-	}
+  constructor(public status: number) {
+    super(`HTTP ${status}`);
+  }
 }

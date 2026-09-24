@@ -23,7 +23,9 @@ function fixtureDirectory(prefix: string): Promise<string> {
   return mkdtemp(join(tmpdir(), prefix));
 }
 
-test("createTempSpool writes bounded response and final content files", { skip: process.platform === "win32" }, async () => {
+test("createTempSpool writes bounded response and final content files", {
+  skip: process.platform === "win32",
+}, async () => {
   const base = await fixtureDirectory("pi-web-tools-spool-");
   const spool = await createTempSpool(base);
   try {

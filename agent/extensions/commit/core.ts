@@ -24,7 +24,7 @@ export const GENERATION_TIMEOUT_MS = 120_000;
 
 /** Short argv message; the details (file list + staged diff) are piped on stdin. */
 export const TASK_HEADER =
-	"Generate a commit message for the staged files; the file list and staged diff arrive on stdin.";
+  "Generate a commit message for the staged files; the file list and staged diff arrive on stdin.";
 
 /**
  * System prompt for the `pi -p` generator. Formerly agents/commit.md
@@ -53,28 +53,28 @@ export const COMMIT_SYSTEM_PROMPT = `You are a commit message generator. Your on
 
 /** Build the `pi -p` argv. The task itself goes on stdin (see runPiGenerate). */
 export function buildPiArgs(model: string, thinking?: string): string[] {
-	const args = [
-		"-p",
-		"--model",
-		model,
-		"--system-prompt",
-		COMMIT_SYSTEM_PROMPT,
-		"--no-tools",
-		"--no-extensions",
-		"--no-skills",
-		"--no-context-files",
-		"--no-session",
-	];
-	if (thinking !== undefined) args.push("--thinking", thinking);
-	args.push(TASK_HEADER);
-	return args;
+  const args = [
+    "-p",
+    "--model",
+    model,
+    "--system-prompt",
+    COMMIT_SYSTEM_PROMPT,
+    "--no-tools",
+    "--no-extensions",
+    "--no-skills",
+    "--no-context-files",
+    "--no-session",
+  ];
+  if (thinking !== undefined) args.push("--thinking", thinking);
+  args.push(TASK_HEADER);
+  return args;
 }
 
 export interface GenerateResult {
-	/** The generator's stdout (trimmed), when it exited 0. */
-	message: string;
-	/** Non-zero exit / spawn failure / timeout — mutually exclusive with message. */
-	error?: string;
+  /** The generator's stdout (trimmed), when it exited 0. */
+  message: string;
+  /** Non-zero exit / spawn failure / timeout — mutually exclusive with message. */
+  error?: string;
 }
 
 /**
@@ -82,129 +82,135 @@ export interface GenerateResult {
  * Resolves on exit; kills the child on timeout.
  */
 export function runPiGenerate(opts: {
-	model: string;
-	thinking?: string;
-	task: string;
-	cwd: string;
-	timeoutMs?: number;
+  model: string;
+  thinking?: string;
+  task: string;
+  cwd: string;
+  timeoutMs?: number;
 }): Promise<GenerateResult> {
-	const { model, thinking, task, cwd, timeoutMs = GENERATION_TIMEOUT_MS } = opts;
-	return new Promise((resolve) => {
-		const isWindows = process.platform === "win32";
-		const piArgs = buildPiArgs(model, thinking);
-		const piCommand = isWindows ? (process.env.ComSpec ?? "cmd.exe") : "pi";
-		const commandArgs = isWindows
-			? ["/d", "/s", "/c", "pi.cmd", ...piArgs]
-			: piArgs;
-		const child = spawn(piCommand, commandArgs, {
-			cwd,
-			stdio: ["pipe", "pipe", "pipe"],
-		});
-		let stdout = "";
-		let stderr = "";
-		let settled = false;
-		let timedOut = false;
+  const {
+    model,
+    thinking,
+    task,
+    cwd,
+    timeoutMs = GENERATION_TIMEOUT_MS,
+  } = opts;
+  return new Promise((resolve) => {
+    const isWindows = process.platform === "win32";
+    const piArgs = buildPiArgs(model, thinking);
+    const piCommand = isWindows ? (process.env.ComSpec ?? "cmd.exe") : "pi";
+    const commandArgs = isWindows
+      ? ["/d", "/s", "/c", "pi.cmd", ...piArgs]
+      : piArgs;
+    const child = spawn(piCommand, commandArgs, {
+      cwd,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    let stdout = "";
+    let stderr = "";
+    let settled = false;
+    let timedOut = false;
 
-		const settle = (result: GenerateResult) => {
-			if (settled) return;
-			settled = true;
-			clearTimeout(timer);
-			resolve(result);
-		};
+    const settle = (result: GenerateResult) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(result);
+    };
 
-		const timer = setTimeout(() => {
-			timedOut = true;
-			settle({ message: "", error: "Generation timed out" });
-			if (process.platform === "win32" && child.pid) {
-				execFile("taskkill", ["/pid", String(child.pid), "/t", "/f"], () => {
-					settle({ message: "", error: "Generation timed out" });
-				});
-			} else {
-				child.kill("SIGKILL");
-			}
-		}, timeoutMs);
+    const timer = setTimeout(() => {
+      timedOut = true;
+      settle({ message: "", error: "Generation timed out" });
+      if (process.platform === "win32" && child.pid) {
+        execFile("taskkill", ["/pid", String(child.pid), "/t", "/f"], () => {
+          settle({ message: "", error: "Generation timed out" });
+        });
+      } else {
+        child.kill("SIGKILL");
+      }
+    }, timeoutMs);
 
-		child.stdout.on("data", (chunk: Buffer) => {
-			stdout += chunk.toString();
-		});
-		child.stderr.on("data", (chunk: Buffer) => {
-			stderr += chunk.toString();
-		});
-		child.on("error", (err) => {
-			// e.g. ENOENT — the `pi` command is not on PATH.
-			settle({ message: "", error: firstLineOf(err) });
-		});
-		child.on("close", (code) => {
-			if (timedOut) return;
-			if (code === 0) {
-				settle({ message: stdout.trim() });
-				return;
-			}
-			// pi prints model-resolution failures to stdout; stderr is a fallback.
-			const detail =
-				stdout.trim().split("\n")[0] ||
-				stderr.trim().split("\n")[0] ||
-				`pi exited with code ${code}`;
-			settle({ message: "", error: detail });
-		});
+    child.stdout.on("data", (chunk: Buffer) => {
+      stdout += chunk.toString();
+    });
+    child.stderr.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
+    child.on("error", (err) => {
+      // e.g. ENOENT — the `pi` command is not on PATH.
+      settle({ message: "", error: firstLineOf(err) });
+    });
+    child.on("close", (code) => {
+      if (timedOut) return;
+      if (code === 0) {
+        settle({ message: stdout.trim() });
+        return;
+      }
+      // pi prints model-resolution failures to stdout; stderr is a fallback.
+      const detail =
+        stdout.trim().split("\n")[0] ||
+        stderr.trim().split("\n")[0] ||
+        `pi exited with code ${code}`;
+      settle({ message: "", error: detail });
+    });
 
-		child.stdin.write(task);
-		child.stdin.end();
-	});
+    child.stdin.write(task);
+    child.stdin.end();
+  });
 }
 
 // ---- git --------------------------------------------------------------------
 
 export interface StagedFile {
-	status: string;
-	path: string;
+  status: string;
+  path: string;
 }
 
 /** Parse `git diff --cached --name-status` output. Renames join old+new with →. */
 export function parseStagedOutput(raw: string): StagedFile[] {
-	return raw
-		.trim()
-		.split("\n")
-		.filter((line) => line.length > 0)
-		.map((line) => {
-			const parts = line.split("\t");
-			return { status: parts[0] ?? "", path: parts.slice(1).join(" → ") };
-		});
+  return raw
+    .trim()
+    .split("\n")
+    .filter((line) => line.length > 0)
+    .map((line) => {
+      const parts = line.split("\t");
+      return { status: parts[0] ?? "", path: parts.slice(1).join(" → ") };
+    });
 }
 
 /** Staged files of the repo at cwd. Throws on git errors. */
 export function getStagedFiles(cwd: string): StagedFile[] {
-	const out = execFileSync("git", ["diff", "--cached", "--name-status"], {
-		cwd,
-		encoding: "utf8",
-	});
-	return parseStagedOutput(out);
+  const out = execFileSync("git", ["diff", "--cached", "--name-status"], {
+    cwd,
+    encoding: "utf8",
+  });
+  return parseStagedOutput(out);
 }
 
 /** Staged diff text, piped to the generator. */
 export function getStagedDiff(cwd: string): string {
-	return execFileSync("git", ["diff", "--cached"], {
-		cwd,
-		encoding: "utf8",
-		maxBuffer: 64 * 1024 * 1024,
-	});
+  return execFileSync("git", ["diff", "--cached"], {
+    cwd,
+    encoding: "utf8",
+    maxBuffer: 64 * 1024 * 1024,
+  });
 }
 
 /** `git commit -m`; returns the first output line. Throws on failure. */
 export function gitCommit(message: string, cwd: string): string {
-	const output = execFileSync("git", ["commit", "-m", message], {
-		cwd,
-		encoding: "utf8",
-	});
-	return output.trim().split("\n")[0] ?? "";
+  const output = execFileSync("git", ["commit", "-m", message], {
+    cwd,
+    encoding: "utf8",
+  });
+  return output.trim().split("\n")[0] ?? "";
 }
 
 // ---- prompt -----------------------------------------------------------------
 
 /** The stdin payload for the generator: file list + staged diff. */
 export function buildTask(files: StagedFile[], diff: string): string {
-	const list = files.map((file) => `- ${file.status}  ${file.path}`).join("\n");
-	return `Files:\n${list}\n\n<staged diff>\n${diff}`;
+  const list = files.map((file) => `- ${file.status}  ${file.path}`).join("\n");
+  return `Files:\n${list}\n\n<staged diff>\n${diff}`;
 }
 
 /**
@@ -213,22 +219,22 @@ export function buildTask(files: StagedFile[], diff: string): string {
  * alongside the English ones.
  */
 const META_LINE_PREFIXES = [
-	"如需",
-	"说明",
-	"注意",
-	"备注",
-	"备选",
-	"英文版",
-	"Alternatively",
-	"Translation:",
-	"Note:",
-	"Notes:",
+  "如需",
+  "说明",
+  "注意",
+  "备注",
+  "备选",
+  "英文版",
+  "Alternatively",
+  "Translation:",
+  "Note:",
+  "Notes:",
 ];
 
 /** True when a line looks like meta commentary (ignoring markdown decoration). */
 function isMetaLine(line: string): boolean {
-	const text = line.trim().replace(/^[#*>-]+\s*/, "");
-	return META_LINE_PREFIXES.some((prefix) => text.startsWith(prefix));
+  const text = line.trim().replace(/^[#*>-]+\s*/, "");
+  return META_LINE_PREFIXES.some((prefix) => text.startsWith(prefix));
 }
 
 /**
@@ -242,20 +248,20 @@ function isMetaLine(line: string): boolean {
  *   3. a trailing meta section ("说明：…", "Note: …") — cut it off
  */
 export function stripCodeFences(text: string): string {
-	let out = text.trim();
+  let out = text.trim();
 
-	const whole = out.match(/^```[^\n]*\n([\s\S]*?)(?:```\s*)?$/);
-	if (whole) return whole[1].trim();
+  const whole = out.match(/^```[^\n]*\n([\s\S]*?)(?:```\s*)?$/);
+  if (whole) return whole[1].trim();
 
-	const fenceAt = out.search(/^```/m);
-	if (fenceAt > 0) out = out.slice(0, fenceAt).trim();
+  const fenceAt = out.search(/^```/m);
+  if (fenceAt > 0) out = out.slice(0, fenceAt).trim();
 
-	// Never treat the subject line itself as meta commentary.
-	const lines = out.split("\n");
-	const cut = lines.findIndex((line, index) => index > 0 && isMetaLine(line));
-	if (cut > 0) out = lines.slice(0, cut).join("\n").trim();
+  // Never treat the subject line itself as meta commentary.
+  const lines = out.split("\n");
+  const cut = lines.findIndex((line, index) => index > 0 && isMetaLine(line));
+  if (cut > 0) out = lines.slice(0, cut).join("\n").trim();
 
-	return out;
+  return out;
 }
 
 // ---- last model memory ------------------------------------------------------
@@ -265,42 +271,49 @@ export function stripCodeFences(text: string): string {
 
 /** Agent dir honouring PI_CODING_AGENT_DIR (same expansion as pi-subagents). */
 export function getAgentDir(): string {
-	const configured = process.env.PI_CODING_AGENT_DIR;
-	if (configured === "~") return os.homedir();
-	if (configured?.startsWith("~/")) {
-		return path.join(os.homedir(), configured.slice(2));
-	}
-	return configured || path.join(os.homedir(), ".pi", "agent");
+  const configured = process.env.PI_CODING_AGENT_DIR;
+  if (configured === "~") return os.homedir();
+  if (configured?.startsWith("~/")) {
+    return path.join(os.homedir(), configured.slice(2));
+  }
+  return configured || path.join(os.homedir(), ".pi", "agent");
 }
 
 const LAST_MODEL_FILENAME = "last_model.json";
 
 /** <agentDir>/extensions/commit/last_model.json */
 export function lastModelPath(agentDir: string = getAgentDir()): string {
-	return path.join(agentDir, "extensions", "commit", LAST_MODEL_FILENAME);
+  return path.join(agentDir, "extensions", "commit", LAST_MODEL_FILENAME);
 }
 
 /** Last model used by /commit, or undefined when unset/missing/empty. */
-export function readLastModel(agentDir: string = getAgentDir()): string | undefined {
-	try {
-		const raw = JSON.parse(fs.readFileSync(lastModelPath(agentDir), "utf8")) as {
-			last_model?: unknown;
-		};
-		const value = raw?.last_model;
-		return typeof value === "string" && value.length > 0 ? value : undefined;
-	} catch {
-		return undefined;
-	}
+export function readLastModel(
+  agentDir: string = getAgentDir(),
+): string | undefined {
+  try {
+    const raw = JSON.parse(
+      fs.readFileSync(lastModelPath(agentDir), "utf8"),
+    ) as {
+      last_model?: unknown;
+    };
+    const value = raw?.last_model;
+    return typeof value === "string" && value.length > 0 ? value : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** Persist the last chosen model (single last_model field). */
-export function writeLastModel(model: string, agentDir: string = getAgentDir()): void {
-	fs.mkdirSync(path.dirname(lastModelPath(agentDir)), { recursive: true });
-	fs.writeFileSync(
-		lastModelPath(agentDir),
-		JSON.stringify({ last_model: model }, null, 2) + "\n",
-		"utf8",
-	);
+export function writeLastModel(
+  model: string,
+  agentDir: string = getAgentDir(),
+): void {
+  fs.mkdirSync(path.dirname(lastModelPath(agentDir)), { recursive: true });
+  fs.writeFileSync(
+    lastModelPath(agentDir),
+    JSON.stringify({ last_model: model }, null, 2) + "\n",
+    "utf8",
+  );
 }
 
 /**
@@ -309,29 +322,31 @@ export function writeLastModel(model: string, agentDir: string = getAgentDir()):
  * for last_model, which must always lead the picker.
  */
 export function orderModelOptions(
-	labels: string[],
-	first?: string,
-	prependIfMissing = false,
+  labels: string[],
+  first?: string,
+  prependIfMissing = false,
 ): string[] {
-	const options = [...new Set(labels)];
-	if (first === undefined) return options;
-	const index = options.indexOf(first);
-	if (index > 0) {
-		options.splice(index, 1);
-		options.unshift(first);
-	} else if (index === -1 && prependIfMissing) {
-		options.unshift(first);
-	}
-	return options;
+  const options = [...new Set(labels)];
+  if (first === undefined) return options;
+  const index = options.indexOf(first);
+  if (index > 0) {
+    options.splice(index, 1);
+    options.unshift(first);
+  } else if (index === -1 && prependIfMissing) {
+    options.unshift(first);
+  }
+  return options;
 }
 
 // ---- misc -------------------------------------------------------------------
 
 /** First line of an error's most informative text (stderr for git, else message). */
 export function firstLineOf(err: unknown): string {
-	const stderr = (err as { stderr?: Buffer | string } | undefined)?.stderr;
-	if (stderr !== undefined) {
-		return stderr.toString().trim().split("\n")[0] ?? "";
-	}
-	return err instanceof Error ? (err.message.split("\n")[0] ?? "") : String(err);
+  const stderr = (err as { stderr?: Buffer | string } | undefined)?.stderr;
+  if (stderr !== undefined) {
+    return stderr.toString().trim().split("\n")[0] ?? "";
+  }
+  return err instanceof Error
+    ? (err.message.split("\n")[0] ?? "")
+    : String(err);
 }

@@ -5,7 +5,10 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 const DANGEROUS_PATTERNS: Array<[RegExp, string]> = [
-  [/\brm\s+(?:-[^-\s]*f[^\s]*\s+)?(?:\/|\/\*|~\/?\*?)(?:\s|$)/i, "recursive deletion"],
+  [
+    /\brm\s+(?:-[^-\s]*f[^\s]*\s+)?(?:\/|\/\*|~\/?\*?)(?:\s|$)/i,
+    "recursive deletion",
+  ],
   [/\bgit\s+(?:reset\s+--hard|clean\s+-[a-z]*f)/i, "destructive git cleanup"],
   [/\bgit\s+push\b[^\n]*\s--force(?:-with-lease)?\b/i, "force push"],
   [/\b(?:sudo|doas)\b/i, "privileged command"],
@@ -28,7 +31,10 @@ export default function safetyExtension(pi: ExtensionAPI) {
     if (!reason) return;
 
     if (!ctx.hasUI) {
-      return { block: true, reason: `Blocked ${reason} in non-interactive mode` };
+      return {
+        block: true,
+        reason: `Blocked ${reason} in non-interactive mode`,
+      };
     }
 
     const approved = await ctx.ui.confirm(

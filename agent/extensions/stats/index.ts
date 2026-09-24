@@ -31,7 +31,10 @@ let contextBudget: ContextBudgetSnapshot = {
   toolResults: [],
 };
 
-function currentModel(ctx: ExtensionContext): { provider?: string; model?: string } {
+function currentModel(ctx: ExtensionContext): {
+  provider?: string;
+  model?: string;
+} {
   return {
     provider:
       typeof ctx?.model?.provider === "string" ? ctx.model.provider : undefined,
@@ -50,17 +53,18 @@ function payloadStringField(payload: unknown, key: string): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
-function activeToolStats(pi: ExtensionAPI): Pick<
-  ContextBudgetSnapshot,
-  "activeToolCount" | "registeredToolCount"
-> {
+function activeToolStats(
+  pi: ExtensionAPI,
+): Pick<ContextBudgetSnapshot, "activeToolCount" | "registeredToolCount"> {
   return {
     activeToolCount: pi.getActiveTools().length,
     registeredToolCount: pi.getAllTools().length,
   };
 }
 
-function sessionToolStats(ctx: ExtensionContext): Pick<
+function sessionToolStats(
+  ctx: ExtensionContext,
+): Pick<
   ContextBudgetSnapshot,
   "sessionEntryCount" | "sessionToolResultChars" | "sessionToolResults"
 > {

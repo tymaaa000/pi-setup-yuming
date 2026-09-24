@@ -19,110 +19,110 @@ const CHATGPT_JWT_CLAIM_PATH = "https://api.openai.com/auth";
 const WARNING_PERCENT = 80;
 
 type WhamWindow = {
-	used_percent: number;
-	limit_window_seconds: number;
-	reset_at: number;
+  used_percent: number;
+  limit_window_seconds: number;
+  reset_at: number;
 };
 
 type WhamResponse = {
-	plan_type?: string;
-	rate_limit?: Record<string, unknown> | null;
+  plan_type?: string;
+  rate_limit?: Record<string, unknown> | null;
 };
 
 function decodeAccountId(token: string): string | undefined {
-	try {
-		const payload = JSON.parse(atob(token.split(".")[1] ?? ""));
-		const id = payload?.[CHATGPT_JWT_CLAIM_PATH]?.chatgpt_account_id;
-		return typeof id === "string" && id.length > 0 ? id : undefined;
-	} catch {
-		return undefined;
-	}
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1] ?? ""));
+    const id = payload?.[CHATGPT_JWT_CLAIM_PATH]?.chatgpt_account_id;
+    return typeof id === "string" && id.length > 0 ? id : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** Same window labels as the codex CLI: match window seconds within a ±5% tolerance. */
 function windowLabel(seconds: number): string {
-	const minutes = seconds / 60;
-	const approx = (expected: number) =>
-		minutes >= expected * 0.95 && minutes <= expected * 1.05;
-	if (approx(5 * 60)) return "5h";
-	if (approx(24 * 60)) return "daily";
-	if (approx(7 * 24 * 60)) return "weekly";
-	if (approx(30 * 24 * 60)) return "monthly";
-	if (approx(365 * 24 * 60)) return "annual";
-	return "limit";
+  const minutes = seconds / 60;
+  const approx = (expected: number) =>
+    minutes >= expected * 0.95 && minutes <= expected * 1.05;
+  if (approx(5 * 60)) return "5h";
+  if (approx(24 * 60)) return "daily";
+  if (approx(7 * 24 * 60)) return "weekly";
+  if (approx(30 * 24 * 60)) return "monthly";
+  if (approx(365 * 24 * 60)) return "annual";
+  return "limit";
 }
 
 function formatReset(resetAtSec: number): string {
-	const minutes = Math.round((resetAtSec * 1000 - Date.now()) / 60_000);
-	if (minutes <= 0) return "";
-	if (minutes < 60) return `${minutes}m`;
-	const hours = minutes / 60;
-	if (hours < 24) return `${Math.round(hours)}h`;
-	return `${Math.round(hours / 24)}d`;
+  const minutes = Math.round((resetAtSec * 1000 - Date.now()) / 60_000);
+  if (minutes <= 0) return "";
+  if (minutes < 60) return `${minutes}m`;
+  const hours = minutes / 60;
+  if (hours < 24) return `${Math.round(hours)}h`;
+  return `${Math.round(hours / 24)}d`;
 }
 
 function isWhamWindow(value: unknown): value is WhamWindow {
-	if (typeof value !== "object" || value === null) return false;
-	const window = value as Record<string, unknown>;
-	return (
-		typeof window.used_percent === "number" &&
-		typeof window.limit_window_seconds === "number" &&
-		typeof window.reset_at === "number"
-	);
+  if (typeof value !== "object" || value === null) return false;
+  const window = value as Record<string, unknown>;
+  return (
+    typeof window.used_percent === "number" &&
+    typeof window.limit_window_seconds === "number" &&
+    typeof window.reset_at === "number"
+  );
 }
 
 export const chatgptSource: WidgetSource = {
-	provider: CHATGPT_PROVIDER,
-	placeholder: CHATGPT_PLACEHOLDER,
-	async fetch(apiKey, signal) {
-		const headers: Record<string, string> = {
-			Authorization: `Bearer ${apiKey}`,
-			Originator: "pi",
-			"User-Agent": "pi",
-		};
-		const accountId = decodeAccountId(apiKey);
-		if (accountId) headers["ChatGPT-Account-Id"] = accountId;
+  provider: CHATGPT_PROVIDER,
+  placeholder: CHATGPT_PLACEHOLDER,
+  async fetch(apiKey, signal) {
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${apiKey}`,
+      Originator: "pi",
+      "User-Agent": "pi",
+    };
+    const accountId = decodeAccountId(apiKey);
+    if (accountId) headers["ChatGPT-Account-Id"] = accountId;
 
-		const res = await fetch(CHATGPT_USAGE_URL, {
-			method: "GET",
-			headers,
-			signal,
-		});
-		if (!res.ok) throw new HttpError(res.status);
+    const res = await fetch(CHATGPT_USAGE_URL, {
+      method: "GET",
+      headers,
+      signal,
+    });
+    if (!res.ok) throw new HttpError(res.status);
 
-		const data = (await res.json()) as WhamResponse | null;
-		const rateLimit = data?.rate_limit;
-		const windows = [
-			rateLimit?.primary_window,
-			rateLimit?.secondary_window,
-			...Object.entries(rateLimit ?? {})
-				.filter(
-					([name]) => name !== "primary_window" && name !== "secondary_window",
-				)
-				.map(([, value]) => value),
-		]
-			// Keep only window objects so extra windows in the response (monthly_window) work.
-			.filter(isWhamWindow)
-			.map((w) => ({
-				label: windowLabel(w.limit_window_seconds),
-				percent: w.used_percent,
-				reset: formatReset(w.reset_at),
-			}));
-		if (windows.length === 0) return undefined;
+    const data = (await res.json()) as WhamResponse | null;
+    const rateLimit = data?.rate_limit;
+    const windows = [
+      rateLimit?.primary_window,
+      rateLimit?.secondary_window,
+      ...Object.entries(rateLimit ?? {})
+        .filter(
+          ([name]) => name !== "primary_window" && name !== "secondary_window",
+        )
+        .map(([, value]) => value),
+    ]
+      // Keep only window objects so extra windows in the response (monthly_window) work.
+      .filter(isWhamWindow)
+      .map((w) => ({
+        label: windowLabel(w.limit_window_seconds),
+        percent: w.used_percent,
+        reset: formatReset(w.reset_at),
+      }));
+    if (windows.length === 0) return undefined;
 
-		const usage = windows.map((w) => `${w.label}: ${w.percent}%`).join(" · ");
-		// Show the plan type (free/plus/...); omit the prefix when it is missing.
-		const plan = data.plan_type?.trim() ? data.plan_type.trim() : undefined;
-		const prefix = plan ? `ChatGPT ${plan}` : "ChatGPT";
-		const resets = windows
-			.map((w) => w.reset)
-			.filter(Boolean)
-			.join("/");
-		const line = [prefix, usage, resets ? `resets in ${resets}` : ""]
-			.filter(Boolean)
-			.join(" · ");
-		return { line, windows };
-	},
-	// Concrete rule: any window at or above 80% enters the warning state (yellow).
-	isWarning: (data) => data.windows.some((w) => w.percent >= WARNING_PERCENT),
+    const usage = windows.map((w) => `${w.label}: ${w.percent}%`).join(" · ");
+    // Show the plan type (free/plus/...); omit the prefix when it is missing.
+    const plan = data.plan_type?.trim() ? data.plan_type.trim() : undefined;
+    const prefix = plan ? `ChatGPT ${plan}` : "ChatGPT";
+    const resets = windows
+      .map((w) => w.reset)
+      .filter(Boolean)
+      .join("/");
+    const line = [prefix, usage, resets ? `resets in ${resets}` : ""]
+      .filter(Boolean)
+      .join(" · ");
+    return { line, windows };
+  },
+  // Concrete rule: any window at or above 80% enters the warning state (yellow).
+  isWarning: (data) => data.windows.some((w) => w.percent >= WARNING_PERCENT),
 };

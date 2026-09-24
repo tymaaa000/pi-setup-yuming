@@ -8,16 +8,29 @@ function harness() {
   const model = { provider: "openai-codex", id: "gpt-6-astra" };
   const statuses: Record<string, string | undefined> = {};
   const pi: any = {
-    registerCommand: (name: string, options: { handler: Function }) => commands.set(name, options),
+    registerCommand: (name: string, options: { handler: Function }) =>
+      commands.set(name, options),
     on: (event: string, handler: Function) => events.set(event, handler),
-    setModel: async (next: any) => { Object.assign(model, next); return true; },
-    setThinkingLevel: (level: string) => { ctx.thinkingLevel = level; },
+    setModel: async (next: any) => {
+      Object.assign(model, next);
+      return true;
+    },
+    setThinkingLevel: (level: string) => {
+      ctx.thinkingLevel = level;
+    },
   };
   const ctx: any = {
     model,
     thinkingLevel: "medium",
-    ui: { setStatus: (key: string, text?: string) => { statuses[key] = text; }, notify() {} },
-    modelRegistry: { find: (provider: string, id: string) => ({ provider, id }) },
+    ui: {
+      setStatus: (key: string, text?: string) => {
+        statuses[key] = text;
+      },
+      notify() {},
+    },
+    modelRegistry: {
+      find: (provider: string, id: string) => ({ provider, id }),
+    },
   };
   profileExtension(pi);
   return { commands, events, ctx, statuses };

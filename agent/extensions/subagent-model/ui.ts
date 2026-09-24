@@ -1,7 +1,7 @@
 import {
-  supportedThinkingLevels,
   type ConfigMap,
   type SubagentConfig,
+  supportedThinkingLevels,
   writeConfigMap,
 } from "./config.js";
 
@@ -16,7 +16,10 @@ export interface SubagentModelUi {
    * Searchable model picker (type-to-filter, short visible window).
    * Falls back to select() when not provided (tests / non-TUI).
    */
-  selectSearchable?(title: string, options: string[]): Promise<string | undefined>;
+  selectSearchable?(
+    title: string,
+    options: string[],
+  ): Promise<string | undefined>;
   notify(message: string, level: "info" | "warning" | "error"): void;
 }
 
@@ -33,7 +36,9 @@ export function topMenuOptions(agentNames: string[], map: ConfigMap): string[] {
 }
 
 /** Parse a top-menu row into the agent name it represents, or "save". */
-export function parseTopMenuChoice(choice: string | undefined): string | "save" | undefined {
+export function parseTopMenuChoice(
+  choice: string | undefined,
+): string | "save" | undefined {
   if (!choice) return undefined;
   if (choice === SAVE_LABEL) return "save";
   const arrow = choice.indexOf(" → ");
@@ -42,7 +47,9 @@ export function parseTopMenuChoice(choice: string | undefined): string | "save" 
 }
 
 /** Model picker labels: provider/id for concrete models only. */
-export function modelPickerOptions(models: Array<{ provider: string; id: string }>): string[] {
+export function modelPickerOptions(
+  models: Array<{ provider: string; id: string }>,
+): string[] {
   return models.map((m) => `${m.provider}/${m.id}`);
 }
 
@@ -68,7 +75,9 @@ export interface RunSubagentModelUiOptions {
  * /subagent-model loop: top menu (agent rows + Save) → model picker → thinking
  * picker → back to top; Save writes the config file and invokes onSaved.
  */
-export async function runSubagentModelUi(opts: RunSubagentModelUiOptions): Promise<void> {
+export async function runSubagentModelUi(
+  opts: RunSubagentModelUiOptions,
+): Promise<void> {
   const draft: ConfigMap = new Map(opts.initialMap);
   const pickModel =
     opts.ui.selectSearchable?.bind(opts.ui) ?? opts.ui.select.bind(opts.ui);
@@ -87,7 +96,9 @@ export async function runSubagentModelUi(opts: RunSubagentModelUiOptions): Promi
       const unsupported: string[] = [];
       for (const [name, config] of draft) {
         if (!config.thinking) continue;
-        const model = opts.availableModels.find((m) => `${m.provider}/${m.id}` === config.model);
+        const model = opts.availableModels.find(
+          (m) => `${m.provider}/${m.id}` === config.model,
+        );
         if (!model) continue;
         if (!supportedThinkingLevels(model).includes(config.thinking)) {
           unsupported.push(`${name}: ${config.thinking}`);
@@ -113,9 +124,14 @@ export async function runSubagentModelUi(opts: RunSubagentModelUiOptions): Promi
     const picked = await pickModel(`Bind ${parsed}`, models);
     if (!picked) continue;
     // Only offer levels the picked model actually supports; (inherit) clears the pin.
-    const model = opts.availableModels.find((m) => `${m.provider}/${m.id}` === picked);
+    const model = opts.availableModels.find(
+      (m) => `${m.provider}/${m.id}` === picked,
+    );
     const levels = supportedThinkingLevels(model ?? {});
-    const level = await opts.ui.select(`Thinking for ${parsed}`, [INHERIT_LABEL, ...levels]);
+    const level = await opts.ui.select(`Thinking for ${parsed}`, [
+      INHERIT_LABEL,
+      ...levels,
+    ]);
     if (!level) continue; // cancel level → abort this rebind, keep previous binding
 
     const config: SubagentConfig = { model: picked };

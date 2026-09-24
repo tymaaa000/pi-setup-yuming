@@ -16,25 +16,25 @@ const REASON_MAX = 48;
 const CAUSE_MAX_DEPTH = 3;
 
 function describeCause(cause: unknown, depth = 0): string | undefined {
-	if (depth > CAUSE_MAX_DEPTH || cause === null || cause === undefined)
-		return undefined;
-	if (cause instanceof AggregateError) {
-		const reasons = cause.errors
-			.map((error) => describeCause(error, depth + 1))
-			.filter((reason): reason is string => reason !== undefined);
-		const unique = [...new Set(reasons)];
-		if (unique.length > 0) return unique.join("/");
-	}
-	if (typeof cause !== "object") return undefined;
-	// Error codes are short and stable; a message is the fallback when none exists.
-	const code = (cause as { code?: unknown }).code;
-	if (typeof code === "string" && code.length > 0) return code;
-	if (cause instanceof Error) {
-		const message = cause.message.split("\n")[0].trim();
-		if (message.length > 0) return message;
-		return describeCause(cause.cause, depth + 1);
-	}
-	return undefined;
+  if (depth > CAUSE_MAX_DEPTH || cause === null || cause === undefined)
+    return undefined;
+  if (cause instanceof AggregateError) {
+    const reasons = cause.errors
+      .map((error) => describeCause(error, depth + 1))
+      .filter((reason): reason is string => reason !== undefined);
+    const unique = [...new Set(reasons)];
+    if (unique.length > 0) return unique.join("/");
+  }
+  if (typeof cause !== "object") return undefined;
+  // Error codes are short and stable; a message is the fallback when none exists.
+  const code = (cause as { code?: unknown }).code;
+  if (typeof code === "string" && code.length > 0) return code;
+  if (cause instanceof Error) {
+    const message = cause.message.split("\n")[0].trim();
+    if (message.length > 0) return message;
+    return describeCause(cause.cause, depth + 1);
+  }
+  return undefined;
 }
 
 /**
@@ -42,14 +42,14 @@ function describeCause(cause: unknown, depth = 0): string | undefined {
  * underlying network cause (`TypeError: fetch failed [ECONNRESET]`).
  */
 export function failureReason(err: unknown): string {
-	if (err instanceof HttpError) return `HTTP ${err.status}`;
-	if (
-		err instanceof Error &&
-		(err.name === "AbortError" || err.name === "TimeoutError")
-	)
-		return "timeout";
-	if (!(err instanceof Error)) return "error";
-	const cause = describeCause(err.cause);
-	const base = `${err.name}: ${err.message}`;
-	return (cause ? `${base} [${cause}]` : base).slice(0, REASON_MAX);
+  if (err instanceof HttpError) return `HTTP ${err.status}`;
+  if (
+    err instanceof Error &&
+    (err.name === "AbortError" || err.name === "TimeoutError")
+  )
+    return "timeout";
+  if (!(err instanceof Error)) return "error";
+  const cause = describeCause(err.cause);
+  const base = `${err.name}: ${err.message}`;
+  return (cause ? `${base} [${cause}]` : base).slice(0, REASON_MAX);
 }

@@ -8,8 +8,8 @@ import {
   modelPickerOptions,
   parseTopMenuChoice,
   runSubagentModelUi,
-  topMenuOptions,
   type SubagentModelUi,
+  topMenuOptions,
 } from "./ui.js";
 
 function tmpDir(): string {
@@ -57,7 +57,9 @@ test("modelPickerOptions lists concrete models", () => {
 
 test("runSubagentModelUi: rebind one agent, Save writes config and calls onSaved", async () => {
   const dir = tmpDir();
-  const initial = buildConfigMap({ Explore: { model: "opencode-go/deepseek-v4-pro" } });
+  const initial = buildConfigMap({
+    Explore: { model: "opencode-go/deepseek-v4-pro" },
+  });
   const available = [
     { provider: "opencode-go", id: "deepseek-v4-flash", reasoning: true },
     { provider: "opencode-go", id: "deepseek-v4-pro", reasoning: true },
@@ -86,7 +88,12 @@ test("runSubagentModelUi: rebind one agent, Save writes config and calls onSaved
         return "high";
       }
       if (selectCalls === 4) {
-        assert.ok(options.some((o) => o === "Explore → opencode-go/deepseek-v4-flash (thinking: high)"));
+        assert.ok(
+          options.some(
+            (o) =>
+              o === "Explore → opencode-go/deepseek-v4-flash (thinking: high)",
+          ),
+        );
         return "Save";
       }
       return undefined;
@@ -125,7 +132,8 @@ test("runSubagentModelUi: (inherit) clears a previous pin", async () => {
   const ui: SubagentModelUi = {
     select: async (_title, options) => {
       selectCalls++;
-      if (selectCalls === 1) return options.find((o) => o.startsWith("Explore →"))!;
+      if (selectCalls === 1)
+        return options.find((o) => o.startsWith("Explore →"))!;
       if (selectCalls === 2) return "opencode-go/deepseek-v4-pro";
       if (selectCalls === 3) return "(inherit)";
       return "Save";
@@ -143,7 +151,9 @@ test("runSubagentModelUi: (inherit) clears a previous pin", async () => {
   });
 
   const written = readConfigMap(dir);
-  assert.deepEqual(written.get("explore"), { model: "opencode-go/deepseek-v4-pro" });
+  assert.deepEqual(written.get("explore"), {
+    model: "opencode-go/deepseek-v4-pro",
+  });
 });
 
 test("runSubagentModelUi: warns about hand-edited pins the model cannot support", async () => {
@@ -167,15 +177,25 @@ test("runSubagentModelUi: warns about hand-edited pins the model cannot support"
     initialMap: initial,
     agentNames: ["Explore", "commit"],
     availableModels: [
-      { provider: "opencode-go", id: "deepseek-v4-flash", reasoning: true, thinkingLevelMap: { low: null, high: "high", max: "max" } },
+      {
+        provider: "opencode-go",
+        id: "deepseek-v4-flash",
+        reasoning: true,
+        thinkingLevelMap: { low: null, high: "high", max: "max" },
+      },
     ],
     onSaved: async () => {},
   });
 
   const warning = notices.find((n) => n.level === "warning");
   assert.ok(warning, "expected a warning");
-  assert.ok(warning!.message.includes("explore") && warning!.message.includes("low"));
-  assert.ok(!warning!.message.includes("commit"), "supported pin must not be flagged");
+  assert.ok(
+    warning!.message.includes("explore") && warning!.message.includes("low"),
+  );
+  assert.ok(
+    !warning!.message.includes("commit"),
+    "supported pin must not be flagged",
+  );
 });
 
 test("runSubagentModelUi: no warning when all pins are supported", async () => {
@@ -193,7 +213,12 @@ test("runSubagentModelUi: no warning when all pins are supported", async () => {
     initialMap: initial,
     agentNames: ["Explore"],
     availableModels: [
-      { provider: "opencode-go", id: "deepseek-v4-flash", reasoning: true, thinkingLevelMap: { high: "high", max: "max" } },
+      {
+        provider: "opencode-go",
+        id: "deepseek-v4-flash",
+        reasoning: true,
+        thinkingLevelMap: { high: "high", max: "max" },
+      },
     ],
     onSaved: async () => {},
   });
@@ -225,7 +250,8 @@ test("runSubagentModelUi: cancel thinking picker aborts rebind", async () => {
     ui: {
       select: async (_title, options) => {
         selectCalls++;
-        if (selectCalls === 1) return options.find((o) => o.startsWith("Explore →"))!;
+        if (selectCalls === 1)
+          return options.find((o) => o.startsWith("Explore →"))!;
         if (selectCalls === 2) return "p/b";
         return undefined; // thinking picker cancelled
       },

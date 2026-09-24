@@ -60,7 +60,10 @@ export default function (pi: ExtensionAPI) {
       "Preview the provider request payload in neovim (read-only). Subcommands: start | stop | status | help",
     handler: async (args, ctx) => {
       if (ctx.mode !== "tui") {
-        ctx.ui.notify("/context-preview requires an interactive terminal", "error");
+        ctx.ui.notify(
+          "/context-preview requires an interactive terminal",
+          "error",
+        );
         return;
       }
 
@@ -114,7 +117,10 @@ export default function (pi: ExtensionAPI) {
           clearScreen: true,
         });
         if (result.kind === "not-found") {
-          ctx.ui.notify("nvim not found; make sure it is installed and on PATH", "error");
+          ctx.ui.notify(
+            "nvim not found; make sure it is installed and on PATH",
+            "error",
+          );
           return;
         }
         if (result.kind === "launch-error") {

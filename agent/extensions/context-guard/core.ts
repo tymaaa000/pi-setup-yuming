@@ -3,19 +3,19 @@ import { homedir } from "node:os";
 import path from "node:path";
 
 export interface SearchInput {
-	limit?: unknown;
-	context?: unknown;
+  limit?: unknown;
+  context?: unknown;
 }
 
 export interface ReadInput {
-	path?: unknown;
-	offset?: unknown;
-	limit?: unknown;
+  path?: unknown;
+  offset?: unknown;
+  limit?: unknown;
 }
 
 export interface GuardResult {
-	block: true;
-	reason: string;
+  block: true;
+  reason: string;
 }
 
 export const MAX_SEARCH_LIMIT = 20;
@@ -25,9 +25,9 @@ const MAX_DIRECT_READ_LINES = 400;
 const SEARCH_TOOLS = new Set(["grep", "ffgrep"]);
 
 function formatBytes(bytes: number): string {
-	if (bytes < 1024) return `${bytes}B`;
-	if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`;
-	return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+  if (bytes < 1024) return `${bytes}B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
 }
 
 /**
@@ -35,41 +35,41 @@ function formatBytes(bytes: number): string {
  * numeric string counts as a bounded read instead of a false positive.
  */
 function boundedLineLimit(input: ReadInput): number | undefined {
-	const raw = input.limit;
-	const value =
-		typeof raw === "number"
-			? raw
-			: typeof raw === "string" && raw.trim() !== ""
-				? Number(raw)
-				: Number.NaN;
-	if (!Number.isFinite(value) || value <= 0) return undefined;
-	return value;
+  const raw = input.limit;
+  const value =
+    typeof raw === "number"
+      ? raw
+      : typeof raw === "string" && raw.trim() !== ""
+        ? Number(raw)
+        : Number.NaN;
+  if (!Number.isFinite(value) || value <= 0) return undefined;
+  return value;
 }
 
 /** Expand a leading "~" the way a shell would; path.resolve alone would not. */
 export function resolveReadPath(cwd: string, inputPath: string): string {
-	if (inputPath === "~") return homedir();
-	if (inputPath.startsWith("~/")) {
-		return path.join(homedir(), inputPath.slice(2));
-	}
-	return path.resolve(cwd, inputPath);
+  if (inputPath === "~") return homedir();
+  if (inputPath.startsWith("~/")) {
+    return path.join(homedir(), inputPath.slice(2));
+  }
+  return path.resolve(cwd, inputPath);
 }
 
 export function normalizeSearchInput(input: SearchInput): {
-	limit?: number;
-	context?: number;
+  limit?: number;
+  context?: number;
 } {
-	const normalized: { limit?: number; context?: number } = {};
-	if (typeof input.limit === "number" && Number.isFinite(input.limit)) {
-		normalized.limit = Math.min(Math.max(1, input.limit), MAX_SEARCH_LIMIT);
-	}
-	if (typeof input.context === "number" && Number.isFinite(input.context)) {
-		normalized.context = Math.min(
-			Math.max(0, input.context),
-			MAX_SEARCH_CONTEXT,
-		);
-	}
-	return normalized;
+  const normalized: { limit?: number; context?: number } = {};
+  if (typeof input.limit === "number" && Number.isFinite(input.limit)) {
+    normalized.limit = Math.min(Math.max(1, input.limit), MAX_SEARCH_LIMIT);
+  }
+  if (typeof input.context === "number" && Number.isFinite(input.context)) {
+    normalized.context = Math.min(
+      Math.max(0, input.context),
+      MAX_SEARCH_CONTEXT,
+    );
+  }
+  return normalized;
 }
 
 /**
@@ -80,17 +80,17 @@ export function normalizeSearchInput(input: SearchInput): {
  * large. Keeping the rule cheap means the guard never reads the file itself.
  */
 export function largeReadReason(
-	input: ReadInput,
-	fileBytes: number,
+  input: ReadInput,
+  fileBytes: number,
 ): string | undefined {
-	if (fileBytes <= MAX_DIRECT_READ_BYTES) return undefined;
-	const limit = boundedLineLimit(input);
-	if (limit !== undefined && limit <= MAX_DIRECT_READ_LINES) return undefined;
+  if (fileBytes <= MAX_DIRECT_READ_BYTES) return undefined;
+  const limit = boundedLineLimit(input);
+  if (limit !== undefined && limit <= MAX_DIRECT_READ_LINES) return undefined;
 
-	return [
-		`Direct read blocked: an unbounded read of ${formatBytes(fileBytes)} exceeds the ${formatBytes(MAX_DIRECT_READ_BYTES)} direct-read budget.`,
-		`Use read with a bounded limit (<= ${MAX_DIRECT_READ_LINES} lines), ffgrep for targeted matches, or a summary workflow.`,
-	].join(" ");
+  return [
+    `Direct read blocked: an unbounded read of ${formatBytes(fileBytes)} exceeds the ${formatBytes(MAX_DIRECT_READ_BYTES)} direct-read budget.`,
+    `Use read with a bounded limit (<= ${MAX_DIRECT_READ_LINES} lines), ffgrep for targeted matches, or a summary workflow.`,
+  ].join(" ");
 }
 
 /**
@@ -98,25 +98,25 @@ export function largeReadReason(
  * guarantees that `tool_call` handlers see and may patch the arguments that will run.
  */
 export function guardToolCall(
-	toolName: string,
-	input: Record<string, unknown>,
-	cwd: string,
+  toolName: string,
+  input: Record<string, unknown>,
+  cwd: string,
 ): GuardResult | undefined {
-	if (SEARCH_TOOLS.has(toolName)) {
-		Object.assign(input, normalizeSearchInput(input));
-		return;
-	}
-	if (toolName !== "read") return;
+  if (SEARCH_TOOLS.has(toolName)) {
+    Object.assign(input, normalizeSearchInput(input));
+    return;
+  }
+  if (toolName !== "read") return;
 
-	const read = input as ReadInput;
-	if (typeof read.path !== "string" || read.path === "") return;
+  const read = input as ReadInput;
+  if (typeof read.path !== "string" || read.path === "") return;
 
-	try {
-		const stat = statSync(resolveReadPath(cwd, read.path));
-		if (!stat.isFile()) return;
-		const reason = largeReadReason(read, stat.size);
-		if (reason) return { block: true, reason };
-	} catch {
-		// Let the built-in read tool report its normal path/error result.
-	}
+  try {
+    const stat = statSync(resolveReadPath(cwd, read.path));
+    if (!stat.isFile()) return;
+    const reason = largeReadReason(read, stat.size);
+    if (reason) return { block: true, reason };
+  } catch {
+    // Let the built-in read tool report its normal path/error result.
+  }
 }
