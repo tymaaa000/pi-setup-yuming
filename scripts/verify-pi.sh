@@ -128,8 +128,10 @@ done
 if [ -f /mnt/d/Linux/searxng-manage.sh ]; then
   if curl -fsS -o /dev/null --max-time 30 'http://localhost:8888/search?q=t&format=json'; then
     ok "SearXNG HTTP endpoint responds"
+  elif systemctl --user is-enabled searxng.service >/dev/null 2>&1; then
+    bad "SearXNG service is enabled but the HTTP endpoint is unavailable"
   else
-    bad "SearXNG HTTP endpoint unavailable"
+    warn "SearXNG stopped (optional: service disabled, Pi uses codex-alpha-search)"
   fi
 else
   bad "SearXNG management script missing"

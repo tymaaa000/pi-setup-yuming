@@ -33,7 +33,8 @@ Boundary
 Search
 ├── core/            -> contracts, normalization, routing, classified errors
 ├── providers/searxng/
-└── providers/codex/ -> Codex OAuth and alpha/search wire format
+├── providers/codex/ -> Codex OAuth and alpha/search wire format
+└── providers/tavily/ -> Tavily /search wire format (best as fallback)
 
 Fetch
 ├── fetch/router.ts          -> GitHub then native HTTP dispatch

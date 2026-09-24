@@ -8,6 +8,7 @@ import {
 } from "./core/types.ts";
 import { CODEX_DEFAULT_MODEL } from "./providers/codex/config.ts";
 import { SEARXNG_DEFAULT_URL } from "./providers/searxng/config.ts";
+import { normalizeTavilyApiKey } from "./providers/tavily/config.ts";
 import {
   DEFAULT_FETCH_TIMEOUT_MS,
   DEFAULT_GITHUB_CLONE_PATH,
@@ -30,6 +31,8 @@ import {
 import { isRecord } from "./shared/results.ts";
 
 export const WEB_TOOLS_CONFIG_FILE = "web-tools-config.json";
+/** Runtime-only secret store; never synced from the repository, never committed. */
+export const WEB_TOOLS_SECRETS_FILE = "web-tools-secrets.json";
 
 export interface WebSearchRouteConfig {
   provider?: string;
@@ -73,6 +76,12 @@ export interface ResolvedWebSearchConfig {
   searxngUrl: string;
   searxngApiKey?: string;
   codexModel: string;
+  tavilyApiKey?: string;
+}
+
+/** Credentials read from the runtime-only secrets file. */
+export interface WebToolsSecrets {
+  tavilyApiKey?: string;
 }
 
 export interface ResolvedGitHubFetchConfig {
@@ -232,6 +241,33 @@ export function getConfigPath(agentDir: string = getAgentDir()): string {
   return join(agentDir, WEB_TOOLS_CONFIG_FILE);
 }
 
+export function getSecretsPath(agentDir: string = getAgentDir()): string {
+  return join(agentDir, WEB_TOOLS_SECRETS_FILE);
+}
+
+/**
+ * Secrets are optional: a missing, unreadable or malformed file yields no
+ * credentials instead of failing extension startup.
+ */
+export async function readSecrets(
+  path: string = getSecretsPath(),
+): Promise<WebToolsSecrets> {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(await readFile(path, "utf8")) as unknown;
+  } catch {
+    return {};
+  }
+  if (!isRecord(raw)) return {};
+  const tavily = isRecord(raw.tavily) ? raw.tavily : undefined;
+  const candidate = tavily?.apiKey;
+  const tavilyApiKey =
+    typeof candidate === "string"
+      ? normalizeTavilyApiKey(candidate)
+      : undefined;
+  return tavilyApiKey ? { tavilyApiKey } : {};
+}
+
 export async function readConfig(
   path: string = getConfigPath(),
 ): Promise<WebToolsFileConfig> {
@@ -284,6 +320,7 @@ export function normalizeProviderName(
 export function resolveSearchConfig(
   config: WebSearchFileConfig = {},
   env: NodeJS.ProcessEnv = process.env,
+  secrets: WebToolsSecrets = {},
 ): ResolvedWebSearchConfig {
   const routing = config.routing ?? {};
   const configuredProvider = stringValue(routing.provider);
@@ -292,7 +329,7 @@ export function resolveSearchConfig(
     : "searxng";
   if (!provider) {
     return invalid(
-      `${INVALID_CONFIG} search.routing.provider must be searxng or codex-alpha-search.`,
+      `${INVALID_CONFIG} search.routing.provider must be searxng, codex-alpha-search or tavily.`,
     );
   }
 
@@ -302,7 +339,7 @@ export function resolveSearchConfig(
     : undefined;
   if (configuredFallbackProvider && !fallbackProvider) {
     return invalid(
-      `${INVALID_CONFIG} search.routing.fallbackProvider must be searxng or codex-alpha-search.`,
+      `${INVALID_CONFIG} search.routing.fallbackProvider must be searxng, codex-alpha-search or tavily.`,
     );
   }
   if (fallbackProvider === provider) {
@@ -326,6 +363,7 @@ export function resolveSearchConfig(
   const searxngUrl = stringValue(env.SEARXNG_URL) ?? SEARXNG_DEFAULT_URL;
   const searxngApiKey = stringValue(env.SEARXNG_API_KEY);
   const codexModel = stringValue(config.codex?.model) ?? CODEX_DEFAULT_MODEL;
+  const tavilyApiKey = stringValue(env.TAVILY_API_KEY) ?? secrets.tavilyApiKey;
 
   return {
     provider,
@@ -336,6 +374,7 @@ export function resolveSearchConfig(
     searxngUrl,
     ...(searxngApiKey ? { searxngApiKey } : {}),
     codexModel,
+    ...(tavilyApiKey ? { tavilyApiKey } : {}),
   };
 }
 
@@ -382,9 +421,10 @@ export function resolveFetchConfig(
 export function resolveConfig(
   config: WebToolsFileConfig = {},
   env: NodeJS.ProcessEnv = process.env,
+  secrets: WebToolsSecrets = {},
 ): ResolvedWebToolsConfig {
   return {
-    search: resolveSearchConfig(config.search, env),
+    search: resolveSearchConfig(config.search, env, secrets),
     fetch: resolveFetchConfig(config.fetch),
   };
 }

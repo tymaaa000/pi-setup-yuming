@@ -2,7 +2,8 @@
   "search": {
     "routing": {
       "provider": "codex-alpha-search",
-      "fallback": true
+      "fallback": true,
+      "fallbackProvider": "tavily"
     },
     "timeoutMs": 15000,
     "maxResults": 10,

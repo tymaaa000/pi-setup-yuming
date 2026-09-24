@@ -26,7 +26,11 @@ function capture(
       command = options;
     },
   } as unknown as ExtensionAPI;
-  registerWebToolsCommand(pi, { env: {}, ...dependencies });
+  registerWebToolsCommand(pi, {
+    env: {},
+    readSecrets: async () => ({}),
+    ...dependencies,
+  });
   assert.ok(command);
   return command;
 }
@@ -76,7 +80,13 @@ test("registerWebToolsCommand: exposes status and provider test arguments", () =
   const command = capture();
   assert.deepEqual(
     command.getArgumentCompletions?.("")?.map((completion) => completion.value),
-    ["status", "test searxng", "test codex-alpha-search", "test codex"],
+    [
+      "status",
+      "test searxng",
+      "test codex-alpha-search",
+      "test codex",
+      "test tavily",
+    ],
   );
   assert.deepEqual(
     command
@@ -84,12 +94,19 @@ test("registerWebToolsCommand: exposes status and provider test arguments", () =
       ?.map((completion) => completion.value),
     ["test searxng"],
   );
+  assert.deepEqual(
+    command
+      .getArgumentCompletions?.("test ta")
+      ?.map((completion) => completion.value),
+    ["test tavily"],
+  );
   assert.deepEqual(command.getArgumentCompletions?.("configure"), null);
 });
 
 test("/web-tools status: reports separate search and fetch settings", async () => {
   const command = capture({
     readConfig: async () => currentConfig(),
+    readSecrets: async () => ({ tavilyApiKey: "tvly-synthetic-secret" }),
     env: {
       SEARXNG_URL: "http://search.example/private/path",
       SEARXNG_API_KEY: "synthetic-api-key",
@@ -110,9 +127,10 @@ test("/web-tools status: reports separate search and fetch settings", async () =
   assert.match(status, /Codex authentication: configured \(OAuth required\)/);
   assert.match(status, /SearXNG URL: configured \(env\)/);
   assert.match(status, /SearXNG Bearer key: set \(env\)/);
+  assert.match(status, /Tavily key: set \(secrets file\)/);
   assert.doesNotMatch(
     status,
-    /private\/path|synthetic-api-key|synthetic-codex-model/,
+    /private\/path|synthetic-api-key|synthetic-codex-model|tvly-synthetic-secret/,
   );
 });
 
@@ -123,7 +141,7 @@ test("/web-tools configure: is intentionally unavailable", async () => {
   await command.handler("configure", ctx);
 
   assert.deepEqual(notifications, [
-    "/web-tools status\n/web-tools test <searxng|codex-alpha-search|codex>",
+    "/web-tools status\n/web-tools test <searxng|codex-alpha-search|tavily|codex>",
   ]);
 });
 

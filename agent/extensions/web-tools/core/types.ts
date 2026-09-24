@@ -1,6 +1,7 @@
 export const WEB_SEARCH_PROVIDER_NAMES = [
   "searxng",
   "codex-alpha-search",
+  "tavily",
 ] as const;
 
 export type WebSearchProviderName = (typeof WEB_SEARCH_PROVIDER_NAMES)[number];

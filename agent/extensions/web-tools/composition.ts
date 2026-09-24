@@ -12,6 +12,7 @@ import {
 } from "./providers/codex/auth.ts";
 import { createCodexProvider } from "./providers/codex/provider.ts";
 import { createSearxngProvider } from "./providers/searxng/provider.ts";
+import { createTavilyProvider } from "./providers/tavily/provider.ts";
 import type { FetchLike } from "./shared/http.ts";
 
 export interface SearchRuntime {
@@ -41,6 +42,12 @@ export function searchWeb(
         fetch: runtime.fetch,
         resolveAuth: (authSignal) =>
           resolveCodexAuth(runtime.modelRegistry, authSignal),
+      }),
+    tavily: () =>
+      createTavilyProvider({
+        apiKey: config.tavilyApiKey,
+        timeoutMs: config.timeoutMs,
+        fetch: runtime.fetch,
       }),
   });
   return router.search(

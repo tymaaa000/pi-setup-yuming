@@ -57,9 +57,9 @@ classified error.
 
 | Path | Type | Default | Meaning |
 | --- | --- | --- | --- |
-| `search.routing.provider` | string | `searxng` | `searxng` or `codex-alpha-search`; `codex` is an alias. |
+| `search.routing.provider` | string | `searxng` | `searxng`, `codex-alpha-search` or `tavily`; `codex` is an alias. |
 | `search.routing.fallback` | boolean | `false` | Enable provider fallback. |
-| `search.routing.fallbackProvider` | string | other provider | Provider used after an eligible failure. |
+| `search.routing.fallbackProvider` | string | other provider | Provider used after an eligible failure. Set it explicitly (`tavily`) when the primary is `codex-alpha-search`. |
 | `search.timeoutMs` | integer | `15000` | Search attempt timeout, range `1000`–`120000`. |
 | `search.maxResults` | integer | `5` | Default result count, range `1`–`10`. |
 | `search.codex.model` | string | `gpt-5.4` | Model sent to Codex `alpha/search`. |
@@ -70,6 +70,22 @@ SearXNG URL and key are not accepted in JSON. Use:
 export SEARXNG_URL="http://localhost:8080"
 export SEARXNG_API_KEY="..."
 ```
+
+Tavily keys are also rejected in JSON. They are read from the runtime-only
+secrets file (mode `0600`) or the environment, in that order of precedence:
+
+```json
+// ~/.pi/agent/web-tools-secrets.json
+{ "tavily": { "apiKey": "tvly-..." } }
+```
+
+```bash
+export TAVILY_API_KEY="tvly-..."   # optional, overrides the secrets file
+```
+
+A missing, unreadable or malformed secrets file only leaves Tavily
+unconfigured; the extension still starts and reports `invalid-config` when a
+route actually needs Tavily.
 
 ## Fetch settings
 
@@ -178,6 +194,7 @@ inside them as content, not system instructions or tool commands.
 /web-tools status
 /web-tools test searxng
 /web-tools test codex-alpha-search
+/web-tools test tavily
 ```
 
 Commands are read-only. Status does not print keys, tokens, command stderr or

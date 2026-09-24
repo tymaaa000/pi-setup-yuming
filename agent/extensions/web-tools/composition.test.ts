@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { searchWeb } from "./composition.ts";
 import { resolveConfig } from "./config.ts";
+import { WebSearchError } from "./core/errors.ts";
 
 const request = { query: "test", maxResults: 1 };
 
@@ -90,4 +91,83 @@ test("fallback composition isolates provider credentials and preserves redacted 
   assert.equal(seen.length, 2);
   assert.equal(result.provider, "codex-alpha-search");
   assert.equal(result.query, "[redacted]");
+});
+
+test("Codex failures fall back to Tavily through the real composition", async () => {
+  const config = resolveConfig(
+    {
+      search: {
+        routing: {
+          provider: "codex-alpha-search",
+          fallback: true,
+          fallbackProvider: "tavily",
+        },
+      },
+    },
+    {},
+    { tavilyApiKey: "fixture-tavily-key" },
+  );
+  const seen: string[] = [];
+  const result = await searchWeb(
+    { ...request, query: "fallback composition test" },
+    config.search,
+    {
+      fetch: async (input, init) => {
+        seen.push(String(input));
+        assert.equal(
+          new Headers(init?.headers).get("authorization"),
+          "Bearer fixture-tavily-key",
+        );
+        return Response.json({
+          answer: "synthetic answer",
+          results: [
+            {
+              title: "Synthetic",
+              url: "https://example.com/result",
+              content: "synthetic",
+            },
+          ],
+        });
+      },
+    },
+  );
+
+  assert.deepEqual(seen, ["https://api.tavily.com/search"]);
+  assert.equal(result.provider, "tavily");
+  assert.equal(result.summary, "synthetic answer");
+  assert.equal(result.results.length, 1);
+});
+
+test("a missing Tavily key fails the fallback without any HTTP request", async () => {
+  const config = resolveConfig(
+    {
+      search: {
+        routing: {
+          provider: "codex-alpha-search",
+          fallback: true,
+          fallbackProvider: "tavily",
+        },
+      },
+    },
+    {},
+  );
+  let attempted = false;
+  await assert.rejects(
+    searchWeb(request, config.search, {
+      fetch: async () => {
+        attempted = true;
+        throw new Error("tavily must not be called without a key");
+      },
+    }),
+    (error: unknown) => {
+      assert.ok(error instanceof WebSearchError);
+      assert.equal(error.code, "invalid-config");
+      assert.match(
+        error.message,
+        /Tried: codex-alpha-search \([a-z-]+\), tavily \(invalid-config\)\./,
+      );
+      return true;
+    },
+  );
+  assert.equal(attempted, false);
 });

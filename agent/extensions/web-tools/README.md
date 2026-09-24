@@ -45,6 +45,7 @@ config.ts                   search/fetch configuration resolution
 core/                       search contracts, routing and errors
 providers/searxng/          SearXNG search adapter
 providers/codex/            Codex alpha/search adapter for web_search only
+providers/tavily/           Tavily /search adapter (fallback)
 fetch/router.ts             fetch routing
 fetch/http.ts               native HTTP transport
 fetch/content.ts            HTML/text decoding
@@ -110,6 +111,20 @@ export SEARXNG_URL="http://localhost:8080"
 export SEARXNG_API_KEY="..."
 ```
 
+Tavily credentials are never read from `web-tools-config.json`. Put them in the
+runtime-only secrets file (mode `0600`):
+
+```json
+{ "tavily": { "apiKey": "tvly-..." } }
+```
+
+```bash
+chmod 600 ~/.pi/agent/web-tools-secrets.json
+```
+
+`TAVILY_API_KEY` in the environment overrides the secrets file. A missing or
+malformed secrets file only disables Tavily; it never blocks extension startup.
+
 GitHub authentication is owned by the local `gh` CLI:
 
 ```bash
@@ -125,6 +140,7 @@ configuration.
 /web-tools status
 /web-tools test searxng
 /web-tools test codex-alpha-search
+/web-tools test tavily
 ```
 
 The command is read-only. It reports search and fetch settings without printing

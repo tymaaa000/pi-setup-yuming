@@ -8,6 +8,7 @@ import {
   type ResolvedWebFetchConfig,
   type ResolvedWebSearchConfig,
   readConfig,
+  readSecrets,
   resolveConfig,
 } from "./config.ts";
 import { toWebSearchError } from "./core/errors.ts";
@@ -192,6 +193,7 @@ export function registerWebFetchTool(
 
 export interface WebToolsExtensionDependencies {
   readConfig?: typeof readConfig;
+  readSecrets?: typeof readSecrets;
   env?: NodeJS.ProcessEnv;
 }
 
@@ -201,7 +203,8 @@ export default async function webToolsExtension(
 ): Promise<void> {
   try {
     const raw = await (dependencies.readConfig ?? readConfig)();
-    const config = resolveConfig(raw, dependencies.env);
+    const secrets = await (dependencies.readSecrets ?? readSecrets)();
+    const config = resolveConfig(raw, dependencies.env, secrets);
     registerWebSearchTool(pi, { searchConfig: config.search });
     registerWebFetchTool(pi, { fetchConfig: config.fetch });
     registerWebToolsCommand(pi);

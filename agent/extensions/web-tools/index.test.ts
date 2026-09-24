@@ -66,7 +66,7 @@ test("the extension entrypoint validates config before registering tools", async
       registerTool: (tool: ToolDefinition) => names.push(tool.name),
       registerCommand: (name: string) => names.push(name),
     } as unknown as ExtensionAPI,
-    { readConfig: async () => ({}), env: {} },
+    { readConfig: async () => ({}), readSecrets: async () => ({}), env: {} },
   );
   assert.deepEqual(names, ["web_search", "web_fetch", "web-tools"]);
 });
@@ -81,6 +81,7 @@ test("invalid config fails extension loading before tool registration", async ()
       } as unknown as ExtensionAPI,
       {
         readConfig: async () => ({ search: { maxResults: 0 } }),
+        readSecrets: async () => ({}),
         env: {},
       },
     ),
@@ -98,6 +99,7 @@ test("web_search registers the public parameter schema", () => {
   assert.deepEqual(schema.properties.provider.enum, [
     "searxng",
     "codex-alpha-search",
+    "tavily",
   ]);
   assert.equal(schema.properties.query.maxLength, 2_000);
   assert.equal(schema.properties.max_results.maximum, 10);
@@ -302,6 +304,7 @@ test("config read failures are classified during extension loading", async () =>
         readConfig: async () => {
           throw new Error(key);
         },
+        readSecrets: async () => ({}),
         env: {},
       },
     ),

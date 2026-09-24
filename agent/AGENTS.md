@@ -36,8 +36,10 @@ This file is loaded in every Pi session. Keep it limited to stable invariants; p
 
 ## Search Infrastructure Invariants
 
-- Keep the `pi-websearch.json` SearXNG script at `/mnt/d/Linux/searxng-manage.sh`; SearXNG is persistent and must not depend on a Pi session lifecycle.
-- Keep one SearXNG compose source. Before changing search infrastructure, run its status check and an HTTP JSON smoke test.
+- Pi web search uses the local `web-tools` extension only (`web_search` / `web_fetch`): primary `codex-alpha-search`, fallback `tavily` via `search.routing.fallbackProvider`. The `npm:@mammothb/pi-websearch` package (`WebSearch`) was removed from `settings.json` on 2026-09-24 so Docker stays out of the Pi startup path; re-adding that package line is the rollback.
+- Search credentials live only in `~/pi/agent/web-tools-secrets.json` (0600, runtime-owned, never synced and never committed; `TAVILY_API_KEY` in the environment overrides it). Never put secrets into `web-tools-config.json`, which is synced from the repository.
+- The Docker SearXNG stack is retained but disabled (containers stopped, `searxng.service` disabled). Its single compose source stays at `~/pi/repos/pi-setup/searxng/docker-compose.yml`, managed manually through `/mnt/d/Linux/searxng-manage.sh` (which preflights Docker and prints one line when the engine is unavailable).
+- Before changing search infrastructure, run the manage-script status check plus a web-tools `web_search` smoke test.
 
 ## Usage Discipline and Periodic Self-Check
 

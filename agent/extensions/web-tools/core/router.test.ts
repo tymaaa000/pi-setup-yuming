@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { WebSearchError } from "./errors.ts";
-import { WebSearchRouter } from "./router.ts";
+import { type ProviderFactories, WebSearchRouter } from "./router.ts";
 import type { SearchProvider, SearchRequest, SearchResponse } from "./types.ts";
 
 const request: SearchRequest = { query: "test", maxResults: 2 };
@@ -14,11 +14,21 @@ function provider(search: SearchProvider["search"]): SearchProvider {
   return { search };
 }
 
+/** Tests only exercise the factories they override; the rest stay unused. */
+function makeRouter(overrides: Partial<ProviderFactories>): WebSearchRouter {
+  return new WebSearchRouter({
+    tavily: () => {
+      throw new Error("unused provider factory");
+    },
+    ...overrides,
+  } as ProviderFactories);
+}
+
 test("WebSearchRouter: uses injected providers without runtime dependencies", async () => {
   const factoryCalls: string[] = [];
   let received: SearchRequest | undefined;
   let receivedSignal: AbortSignal | undefined;
-  const router = new WebSearchRouter({
+  const router = makeRouter({
     searxng: () => {
       factoryCalls.push("searxng");
       return provider(async (input, signal) => {
@@ -46,7 +56,7 @@ test("WebSearchRouter: uses injected providers without runtime dependencies", as
 
 test("WebSearchRouter: fallback is opt-in", async () => {
   const noFallbackCalls: string[] = [];
-  const noFallbackRouter = new WebSearchRouter({
+  const noFallbackRouter = makeRouter({
     searxng: () => {
       noFallbackCalls.push("searxng");
       return provider(async () => {
@@ -70,7 +80,7 @@ test("WebSearchRouter: fallback is opt-in", async () => {
   assert.deepEqual(noFallbackCalls, ["searxng"]);
 
   const fallbackCalls: string[] = [];
-  const fallbackRouter = new WebSearchRouter({
+  const fallbackRouter = makeRouter({
     searxng: () => {
       fallbackCalls.push("searxng");
       return provider(async () => {
@@ -94,7 +104,7 @@ test("WebSearchRouter: fallback is opt-in", async () => {
 
 test("WebSearchRouter: uses the configured fallback provider", async () => {
   const calls: string[] = [];
-  const router = new WebSearchRouter({
+  const router = makeRouter({
     searxng: () => {
       calls.push("searxng");
       return provider(async () => response("searxng"));
@@ -116,10 +126,35 @@ test("WebSearchRouter: uses the configured fallback provider", async () => {
   assert.deepEqual(calls, ["codex-alpha-search", "searxng"]);
 });
 
+test("WebSearchRouter: tavily serves as the codex fallback", async () => {
+  const calls: string[] = [];
+  const router = makeRouter({
+    "codex-alpha-search": () => {
+      calls.push("codex-alpha-search");
+      return provider(async () => {
+        throw new WebSearchError("rate-limit", "safe rate limit failure");
+      });
+    },
+    tavily: () => {
+      calls.push("tavily");
+      return provider(async () => response("tavily"));
+    },
+  });
+
+  const result = await router.search(request, {
+    provider: "codex-alpha-search",
+    fallback: true,
+    fallbackProvider: "tavily",
+  });
+  assert.equal(result.provider, "tavily");
+  assert.equal(result.query, "tavily");
+  assert.deepEqual(calls, ["codex-alpha-search", "tavily"]);
+});
+
 test("WebSearchRouter: does not fallback invalid-config, request, or cancelled failures", async () => {
   for (const code of ["invalid-config", "request", "cancelled"] as const) {
     const calls: string[] = [];
-    const router = new WebSearchRouter({
+    const router = makeRouter({
       searxng: () => {
         calls.push("searxng");
         return provider(async () => {
@@ -143,7 +178,7 @@ test("WebSearchRouter: does not fallback invalid-config, request, or cancelled f
 
 test("WebSearchRouter: exhaustion reports safe per-attempt error codes", async () => {
   const calls: string[] = [];
-  const router = new WebSearchRouter({
+  const router = makeRouter({
     searxng: () => {
       calls.push("searxng");
       return provider(async () => {
@@ -177,7 +212,7 @@ test("WebSearchRouter: exhaustion reports safe per-attempt error codes", async (
 test("WebSearchRouter: cancellation between attempts does not start fallback", async () => {
   const controller = new AbortController();
   const calls: string[] = [];
-  const router = new WebSearchRouter({
+  const router = makeRouter({
     searxng: () => {
       calls.push("searxng");
       return provider(async (_input, signal) => {
@@ -212,7 +247,7 @@ test("WebSearchRouter: pre-cancelled requests do not construct a provider", asyn
   const controller = new AbortController();
   controller.abort(new Error("synthetic parent reason"));
   const calls: string[] = [];
-  const router = new WebSearchRouter({
+  const router = makeRouter({
     searxng: () => {
       calls.push("searxng");
       return provider(async () => response());

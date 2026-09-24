@@ -8,8 +8,10 @@ import {
   normalizeProviderName,
   type ResolvedWebSearchConfig,
   readConfig,
+  readSecrets,
   resolveConfig,
   type WebToolsFileConfig,
+  type WebToolsSecrets,
 } from "./config.ts";
 import { errorMessageForCode, toWebSearchError } from "./core/errors.ts";
 import type { WebSearchProviderName } from "./core/types.ts";
@@ -17,18 +19,21 @@ import type { WebSearchProviderName } from "./core/types.ts";
 const PROVIDER_LABELS: Record<WebSearchProviderName, string> = {
   searxng: "SearXNG",
   "codex-alpha-search": "Codex alpha/search",
+  tavily: "Tavily",
 };
 const COMMAND_ARGUMENTS = [
   "status",
   "test searxng",
   "test codex-alpha-search",
   "test codex",
+  "test tavily",
 ];
 const DEFAULT_SEARCH_QUERY = "pi web search connectivity";
 type ConfigSource = "env" | "config" | "default" | "none";
 
 export interface WebToolsCommandDependencies {
   readConfig?: typeof readConfig;
+  readSecrets?: typeof readSecrets;
   search?: typeof searchWeb;
   env?: NodeJS.ProcessEnv;
 }
@@ -52,8 +57,9 @@ function statusText(
   raw: WebToolsFileConfig,
   ctx: ExtensionCommandContext,
   env: NodeJS.ProcessEnv,
+  secrets: WebToolsSecrets,
 ): string {
-  const config = resolveConfig(raw, env);
+  const config = resolveConfig(raw, env, secrets);
   const search = raw.search ?? {};
   const routing = search.routing ?? {};
   const fallbackSource = routing.fallback === undefined ? "default" : "config";
@@ -63,6 +69,11 @@ function statusText(
   const fallbackProviderSource =
     routing.fallbackProvider === undefined ? "default" : "config";
   const keySource = source(env.SEARXNG_API_KEY, undefined, false);
+  const tavilyKeySource = env.TAVILY_API_KEY?.trim()
+    ? "env"
+    : secrets.tavilyApiKey
+      ? "secrets file"
+      : "none";
   let auth = "unavailable";
   try {
     auth = ctx.modelRegistry.getProviderAuthStatus("openai-codex").configured
@@ -83,6 +94,7 @@ function statusText(
     `  SearXNG Bearer key: ${keySource === "none" ? "not set" : `set (${keySource})`}`,
     `  Codex model: configured (${source(undefined, search.codex?.model, true)})`,
     `  Codex authentication: ${auth}`,
+    `  Tavily key: ${tavilyKeySource === "none" ? "not set" : `set (${tavilyKeySource})`}`,
     `  fetch timeout: ${config.fetch.timeoutMs} ms`,
     `  GitHub fetch: ${config.fetch.github.enabled ? "enabled" : "disabled"}`,
     `  GitHub mode: ${config.fetch.github.mode}`,
@@ -91,6 +103,7 @@ function statusText(
     "",
     "Search settings are under search; fetch settings are under fetch.",
     "SearXNG URL and credentials are read from environment variables.",
+    "Tavily credentials are read from web-tools-secrets.json or TAVILY_API_KEY.",
     "GitHub uses gh api or shallow clone when the local commands are available.",
   ].join("\n");
 }
@@ -103,6 +116,7 @@ async function testProvider(
   const base = resolveConfig(
     await deps.readConfig(getConfigPath()),
     deps.env,
+    await deps.readSecrets(),
   ).search;
   const config: ResolvedWebSearchConfig = {
     ...base,
@@ -128,6 +142,7 @@ export function registerWebToolsCommand(
 ): void {
   const deps: Required<WebToolsCommandDependencies> = {
     readConfig: provided.readConfig ?? readConfig,
+    readSecrets: provided.readSecrets ?? readSecrets,
     search: provided.search ?? searchWeb,
     env: provided.env ?? process.env,
   };
@@ -146,14 +161,19 @@ export function registerWebToolsCommand(
         const [command, providerValue] = args.trim().split(/\s+/, 2);
         if (command === "status") {
           ctx.ui.notify(
-            statusText(await deps.readConfig(getConfigPath()), ctx, deps.env),
+            statusText(
+              await deps.readConfig(getConfigPath()),
+              ctx,
+              deps.env,
+              await deps.readSecrets(),
+            ),
             "info",
           );
         } else if (command === "test") {
           const provider = normalizeProviderName(providerValue);
           if (!provider) {
             ctx.ui.notify(
-              "Choose a provider: searxng or codex-alpha-search.",
+              "Choose a provider: searxng, codex-alpha-search or tavily.",
               "error",
             );
             return;
@@ -161,7 +181,7 @@ export function registerWebToolsCommand(
           await testProvider(ctx, provider, deps);
         } else {
           ctx.ui.notify(
-            "/web-tools status\n/web-tools test <searxng|codex-alpha-search|codex>",
+            "/web-tools status\n/web-tools test <searxng|codex-alpha-search|tavily|codex>",
             "info",
           );
         }

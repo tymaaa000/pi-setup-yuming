@@ -10,7 +10,6 @@
   },
   "packages": [
     "npm:@ff-labs/pi-fff",
-    "npm:@mammothb/pi-websearch",
     "npm:@gotgenes/pi-subagents",
     "npm:@narumitw/pi-chrome-devtools",
     "npm:@narumitw/pi-lsp",
