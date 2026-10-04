@@ -1,17 +1,22 @@
 {
-  "lastChangelogVersion": "0.87.1",
+  "lastChangelogVersion": "1.0.2",
   "theme": "gruvbox",
   "defaultProvider": "openai-codex",
-  "defaultModel": "gpt-5.6-luna",
+  "defaultModel": "gpt-6.1-sol",
   "packages": [
-    "npm:@gotgenes/pi-subagents",
+    "!npm:@gotgenes/pi-subagents",
     "npm:@narumitw/pi-chrome-devtools",
-    "npm:@juicesharp/rpiv-ask-user-question"
+    "!npm:@juicesharp/rpiv-ask-user-question",
+    "https://github.com/aqua2k1/pi-kits.git"
   ],
   "defaultThinkingLevel": "max",
+  "defaultTools": [
+    "+codemode"
+  ],
   "modelThinkingLevels": {
+    "openai-codex/gpt-5.6-luna": "max",
     "openai-codex/gpt-6-luna": "max",
-    "openai-codex/gpt-6-sol": "high",
+    "openai-codex/gpt-6.1-sol": "medium",
     "openai-codex/gpt-6-astra": "low"
   },
   "terminal": {
@@ -24,10 +29,11 @@
   },
   "enabledModels": [
     "openai-codex/gpt-5.6-luna",
-    "openai-codex/gpt-6-sol",
+    "openai-codex/gpt-6.1-sol",
     "openai-codex/gpt-6-astra"
   ],
   "tuiMode": "fullscreen",
   "showCacheMissNotices": true,
-  "cacheWarming": "streaming"
+  "cacheWarming": "streaming",
+  "deviceId": "c59a1eb8-f442-47ab-a7e8-73edf23be617"
 }
