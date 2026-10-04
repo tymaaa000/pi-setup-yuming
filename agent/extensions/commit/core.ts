@@ -6,7 +6,7 @@
  * flow, ui.ts holds the dialogs.
  */
 
-import { execFile, execFileSync, spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -24,7 +24,7 @@ export const GENERATION_TIMEOUT_MS = 120_000;
 
 /** Short argv message; the details (file list + staged diff) are piped on stdin. */
 export const TASK_HEADER =
-  "Generate a commit message for the staged files; the file list and staged diff arrive on stdin.";
+  "为以下已暂存文件生成 commit message,文件列表和 staged diff 见 stdin";
 
 /**
  * System prompt for the `pi -p` generator. Formerly agents/commit.md
@@ -43,11 +43,7 @@ export const COMMIT_SYSTEM_PROMPT = `You are a commit message generator. Your on
 
 ## Rules
 
-- Output ONLY the commit message text. Nothing before it, nothing after it.
-- Do NOT add alternatives, variants, translations, or "a shorter version".
-- Do NOT add explanations, notes, or commentary around the message.
-- Do NOT wrap the message in code fences.
-- The first line must be the Conventional Commits subject line.
+- Output ONLY the commit message text. No explanations, no commentary, no code fences.
 - Never modify the repository — generation only.
 - Do not ask questions. Do not wait for approval.`;
 
@@ -96,20 +92,13 @@ export function runPiGenerate(opts: {
     timeoutMs = GENERATION_TIMEOUT_MS,
   } = opts;
   return new Promise((resolve) => {
-    const isWindows = process.platform === "win32";
-    const piArgs = buildPiArgs(model, thinking);
-    const piCommand = isWindows ? (process.env.ComSpec ?? "cmd.exe") : "pi";
-    const commandArgs = isWindows
-      ? ["/d", "/s", "/c", "pi.cmd", ...piArgs]
-      : piArgs;
-    const child = spawn(piCommand, commandArgs, {
+    const child = spawn("pi", buildPiArgs(model, thinking), {
       cwd,
       stdio: ["pipe", "pipe", "pipe"],
     });
     let stdout = "";
     let stderr = "";
     let settled = false;
-    let timedOut = false;
 
     const settle = (result: GenerateResult) => {
       if (settled) return;
@@ -119,15 +108,8 @@ export function runPiGenerate(opts: {
     };
 
     const timer = setTimeout(() => {
-      timedOut = true;
-      settle({ message: "", error: "Generation timed out" });
-      if (process.platform === "win32" && child.pid) {
-        execFile("taskkill", ["/pid", String(child.pid), "/t", "/f"], () => {
-          settle({ message: "", error: "Generation timed out" });
-        });
-      } else {
-        child.kill("SIGKILL");
-      }
+      child.kill("SIGKILL");
+      settle({ message: "", error: "生成超时" });
     }, timeoutMs);
 
     child.stdout.on("data", (chunk: Buffer) => {
@@ -141,7 +123,6 @@ export function runPiGenerate(opts: {
       settle({ message: "", error: firstLineOf(err) });
     });
     child.on("close", (code) => {
-      if (timedOut) return;
       if (code === 0) {
         settle({ message: stdout.trim() });
         return;
@@ -150,7 +131,7 @@ export function runPiGenerate(opts: {
       const detail =
         stdout.trim().split("\n")[0] ||
         stderr.trim().split("\n")[0] ||
-        `pi exited with code ${code}`;
+        `pi 退出码 ${code}`;
       settle({ message: "", error: detail });
     });
 
@@ -210,58 +191,14 @@ export function gitCommit(message: string, cwd: string): string {
 /** The stdin payload for the generator: file list + staged diff. */
 export function buildTask(files: StagedFile[], diff: string): string {
   const list = files.map((file) => `- ${file.status}  ${file.path}`).join("\n");
-  return `Files:\n${list}\n\n<staged diff>\n${diff}`;
+  return `文件列表:\n${list}\n\n<staged diff>\n${diff}`;
 }
 
-/**
- * Line prefixes that open a model's meta commentary rather than the message.
- * Detection must cover model output in any language, so Chinese prefixes stay
- * alongside the English ones.
- */
-const META_LINE_PREFIXES = [
-  "如需",
-  "说明",
-  "注意",
-  "备注",
-  "备选",
-  "英文版",
-  "Alternatively",
-  "Translation:",
-  "Note:",
-  "Notes:",
-];
-
-/** True when a line looks like meta commentary (ignoring markdown decoration). */
-function isMetaLine(line: string): boolean {
-  const text = line.trim().replace(/^[#*>-]+\s*/, "");
-  return META_LINE_PREFIXES.some((prefix) => text.startsWith(prefix));
-}
-
-/**
- * Reduce a generator reply to just the commit message.
- *
- * Well-behaved models return the message verbatim. Others append a fenced
- * "alternative" plus a trailing explanation — observed with deepseek-flash even
- * though COMMIT_SYSTEM_PROMPT forbids it. Three shapes are handled:
- *   1. the whole reply wrapped in one fence (tolerating an unclosed fence)
- *   2. a fence appearing later — keep only what precedes it
- *   3. a trailing meta section ("说明：…", "Note: …") — cut it off
- */
+/** Strip a wrapping ``` fence (tolerates an unclosed fence). */
 export function stripCodeFences(text: string): string {
-  let out = text.trim();
-
-  const whole = out.match(/^```[^\n]*\n([\s\S]*?)(?:```\s*)?$/);
-  if (whole) return whole[1].trim();
-
-  const fenceAt = out.search(/^```/m);
-  if (fenceAt > 0) out = out.slice(0, fenceAt).trim();
-
-  // Never treat the subject line itself as meta commentary.
-  const lines = out.split("\n");
-  const cut = lines.findIndex((line, index) => index > 0 && isMetaLine(line));
-  if (cut > 0) out = lines.slice(0, cut).join("\n").trim();
-
-  return out;
+  const trimmed = text.trim();
+  const fenced = trimmed.match(/^```[^\n]*\n([\s\S]*?)(?:```\s*)?$/);
+  return fenced ? fenced[1].trim() : trimmed;
 }
 
 // ---- last model memory ------------------------------------------------------
@@ -311,7 +248,7 @@ export function writeLastModel(
   fs.mkdirSync(path.dirname(lastModelPath(agentDir)), { recursive: true });
   fs.writeFileSync(
     lastModelPath(agentDir),
-    JSON.stringify({ last_model: model }, null, 2) + "\n",
+    `${JSON.stringify({ last_model: model }, null, 2)}\n`,
     "utf8",
   );
 }

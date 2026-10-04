@@ -1,14 +1,12 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import {
   getConfigPath,
-  getSecretsPath,
   parseConfig,
   readConfig,
-  readSecrets,
   resolveConfig,
   resolveFetchConfig,
   resolveSearchConfig,
@@ -118,7 +116,7 @@ test("parseConfig: rejects malformed JSON and known field types safely", () => {
 test("getConfigPath: uses web-tools-config.json under the agent directory", () => {
   assert.equal(
     getConfigPath("/synthetic/agent"),
-    join("/synthetic/agent", "web-tools-config.json"),
+    "/synthetic/agent/web-tools-config.json",
   );
 });
 
@@ -237,80 +235,4 @@ test("config file: missing is optional; other read failures are classified", asy
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
-});
-
-test("secrets file: optional, tolerant, and never fatal to extension startup", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "pi-web-tools-secrets-"));
-  try {
-    const path = getSecretsPath(directory);
-    assert.deepEqual(await readSecrets(path), {});
-    await writeFile(path, "not json", "utf8");
-    assert.deepEqual(await readSecrets(path), {});
-    await writeFile(path, JSON.stringify({ tavily: { apiKey: 42 } }), "utf8");
-    assert.deepEqual(await readSecrets(path), {});
-    await writeFile(
-      path,
-      JSON.stringify({ tavily: { apiKey: "bad\r\nkey" } }),
-      "utf8",
-    );
-    assert.deepEqual(await readSecrets(path), {});
-    await writeFile(
-      path,
-      JSON.stringify({ tavily: { apiKey: " tvly-fixture " } }),
-      "utf8",
-    );
-    assert.deepEqual(await readSecrets(path), { tavilyApiKey: "tvly-fixture" });
-  } finally {
-    await rm(directory, { recursive: true, force: true });
-  }
-});
-
-test("resolveSearchConfig: Tavily accepts secrets and env wins over the secrets file", () => {
-  const fromSecrets = resolveSearchConfig(
-    {
-      routing: {
-        provider: "codex-alpha-search",
-        fallback: true,
-        fallbackProvider: "tavily",
-      },
-    },
-    {},
-    { tavilyApiKey: "tvly-secrets" },
-  );
-  assert.equal(fromSecrets.provider, "codex-alpha-search");
-  assert.equal(fromSecrets.fallbackProvider, "tavily");
-  assert.equal(fromSecrets.tavilyApiKey, "tvly-secrets");
-
-  const fromEnv = resolveSearchConfig(
-    {},
-    { TAVILY_API_KEY: "tvly-env" },
-    { tavilyApiKey: "tvly-secrets" },
-  );
-  assert.equal(fromEnv.tavilyApiKey, "tvly-env");
-
-  assert.equal(resolveSearchConfig({}, {}, {}).tavilyApiKey, undefined);
-  assert.throws(
-    () =>
-      resolveSearchConfig(
-        { routing: { provider: "tavily", fallbackProvider: "tavily" } },
-        {},
-      ),
-    invalidConfig,
-  );
-  assert.equal(
-    resolveConfig(
-      {
-        search: {
-          routing: {
-            provider: "codex-alpha-search",
-            fallback: true,
-            fallbackProvider: "tavily",
-          },
-        },
-      },
-      {},
-      { tavilyApiKey: "tvly-secrets" },
-    ).search.tavilyApiKey,
-    "tvly-secrets",
-  );
 });

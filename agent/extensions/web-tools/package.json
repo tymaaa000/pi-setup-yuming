@@ -12,7 +12,7 @@
     ]
   },
   "scripts": {
-    "test": "bash ../../../scripts/test-all.sh .",
+    "test": "node --test '*.test.ts' 'core/*.test.ts' 'shared/*.test.ts' 'fetch/*.test.ts' 'providers/*/*.test.ts'",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "peerDependencies": {

@@ -7,7 +7,7 @@
  * open  — LLM-callable tool
  */
 
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
@@ -31,10 +31,6 @@ if (platform === "linux") {
 // ── Helpers ────────────────────────────────────────────────────────────
 
 function isUrl(input: string): boolean {
-  // `new URL("D:\\tmp\\x")` does NOT throw - it yields scheme "d:". A Windows
-  // drive letter is not a URL: classifying it as one would skip the
-  // existsSync() guard in openTarget(), silently "opening" missing files.
-  if (/^[a-zA-Z]:[\\/]/.test(input)) return false;
   try {
     new URL(input);
     return true;
@@ -43,24 +39,10 @@ function isUrl(input: string): boolean {
   }
 }
 
-/**
- * Translate an absolute Linux path into one Windows can use.
- *
- * pi runs as a Windows process even when it is launched from WSL, so
- * `process.platform` is "win32" and `/mnt/...` / `/home/...` mean nothing to
- * `existsSync` or to `cmd /c start`. `/mnt/<drive>/...` maps onto
- * `<DRIVE>:\...`; any other absolute Linux path is reachable through the
- * `\\wsl.localhost\<distro>` UNC share. Pure string work - no `wslpath` child
- * process, which a Windows process could not spawn anyway.
- */
 function toWindowsPath(linuxPath: string): string {
-  const drive = /^\/mnt\/([a-zA-Z])(\/.*)?$/.exec(linuxPath);
-  if (drive) {
-    const rest = (drive[2] ?? "/").replace(/\//g, "\\");
-    return `${drive[1].toUpperCase()}:${rest}`;
-  }
-  const distro = process.env.WSL_DISTRO_NAME ?? "Ubuntu";
-  return `\\\\wsl.localhost\\${distro}${linuxPath.replace(/\//g, "\\")}`;
+  return execFileSync("wslpath", ["-w", linuxPath], {
+    encoding: "utf-8",
+  }).trim();
 }
 
 /** Resolve input to an absolute path (URLs pass through unchanged). */
@@ -132,12 +114,7 @@ export default function (pi: ExtensionAPI) {
       return { ok: false, message: "Usage: /open <file|url|directory>" };
     }
 
-    const raw = resolveTarget(args, cwd);
-
-    // pi is a Windows process when launched from WSL: an absolute Linux path has
-    // to be translated before it can be opened - or even existence-checked.
-    const target =
-      platform === "win32" && raw.startsWith("/") ? toWindowsPath(raw) : raw;
+    const target = resolveTarget(args, cwd);
 
     if (!isUrl(target) && !existsSync(target)) {
       return { ok: false, message: `File not found: ${target}` };

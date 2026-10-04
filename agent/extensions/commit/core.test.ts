@@ -111,13 +111,13 @@ test("buildTask: lists staged files and includes the diff", () => {
     ],
     "+validated input\n-removed line",
   );
-  assert.match(task, /Files:/);
+  assert.match(task, /文件列表:/);
   assert.match(task, /- M {2}src\/foo\.ts/);
   assert.match(task, /- R100 {2}old\.ts → new\.ts/);
   assert.match(task, /<staged diff>/);
   assert.match(task, /\+validated input/);
   // Single source of truth: the rules live in the system prompt, not here.
-  assert.doesNotMatch(task, /Conventional|72 characters|feat/);
+  assert.doesNotMatch(task, /Conventional|72 字符|feat/);
 });
 
 // ---- COMMIT_SYSTEM_PROMPT / buildPiArgs -------------------------------------
@@ -177,32 +177,17 @@ async function withFakePi(
   fn: (cwd: string) => Promise<void>,
 ): Promise<void> {
   const dir = mkdtempSync(path.join(os.tmpdir(), "commit-fake-pi-"));
+  const bin = path.join(dir, "pi");
+  writeFileSync(bin, script);
+  chmodSync(bin, 0o755);
   const prev = process.env.PATH;
-  if (process.platform === "win32") {
-    writeFileSync(path.join(dir, "pi.js"), script);
-    writeFileSync(
-      path.join(dir, "pi.cmd"),
-      '@echo off\r\nnode "%~dp0pi.js" %*\r\n',
-    );
-  } else {
-    const bin = path.join(dir, "pi");
-    writeFileSync(bin, script);
-    chmodSync(bin, 0o755);
-  }
-  process.env.PATH = `${dir}${path.delimiter}${prev ?? ""}`;
+  process.env.PATH = `${dir}:${prev ?? ""}`;
   try {
     await fn(dir);
   } finally {
-    if (process.platform === "win32")
-      await new Promise((resolve) => setTimeout(resolve, 300));
     if (prev === undefined) delete process.env.PATH;
     else process.env.PATH = prev;
-    rmSync(dir, {
-      recursive: true,
-      force: true,
-      maxRetries: 10,
-      retryDelay: 100,
-    });
+    rmSync(dir, { recursive: true, force: true });
   }
 }
 
@@ -244,7 +229,7 @@ setTimeout(() => process.exit(0), 60_000);
       timeoutMs: 50,
     });
     assert.equal(result.message, "");
-    assert.equal(result.error, "Generation timed out");
+    assert.equal(result.error, "生成超时");
   });
 });
 
@@ -257,43 +242,6 @@ test("stripCodeFences: strips fenced block", () => {
 
 test("stripCodeFences: plain text untouched (trimmed)", () => {
   assert.equal(stripCodeFences("  feat: x\n\n"), "feat: x");
-});
-
-test("stripCodeFences: drops an appended alternative block and trailing note", () => {
-  const reply = [
-    "feat(calc): 新增 div 除法函数",
-    "",
-    "- 实现 div(a, b)",
-    "",
-    "如需更简短的版本：",
-    "",
-    "```",
-    "feat(calc): add div()",
-    "```",
-    "",
-    "说明：仅根据 staged diff 生成。",
-  ].join("\n");
-  assert.equal(
-    stripCodeFences(reply),
-    "feat(calc): 新增 div 除法函数\n\n- 实现 div(a, b)",
-  );
-});
-
-test("stripCodeFences: drops a trailing note even without a fence", () => {
-  assert.equal(
-    stripCodeFences("fix: x\n\nbody line\n\n说明：为什么这样写"),
-    "fix: x\n\nbody line",
-  );
-});
-
-test("stripCodeFences: keeps ordinary multi-paragraph bodies", () => {
-  const body =
-    "fix(api): reject empty ids\n\n- validate input\n- add regression test";
-  assert.equal(stripCodeFences(body), body);
-});
-
-test("stripCodeFences: subject starting with a meta word is kept", () => {
-  assert.equal(stripCodeFences("说明: 修正文档"), "说明: 修正文档");
 });
 
 // ---- orderModelOptions --------------------------------------------------------

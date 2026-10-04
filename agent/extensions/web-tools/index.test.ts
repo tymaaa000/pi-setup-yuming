@@ -3,6 +3,7 @@ import { rm } from "node:fs/promises";
 import { test } from "node:test";
 import type {
   ExtensionAPI,
+  ExtensionCommandContext,
   ExtensionContext,
   ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
@@ -66,9 +67,44 @@ test("the extension entrypoint validates config before registering tools", async
       registerTool: (tool: ToolDefinition) => names.push(tool.name),
       registerCommand: (name: string) => names.push(name),
     } as unknown as ExtensionAPI,
-    { readConfig: async () => ({}), readSecrets: async () => ({}), env: {} },
+    { readConfig: async () => ({}), env: {} },
   );
   assert.deepEqual(names, ["web_search", "web_fetch", "web-tools"]);
+});
+
+test("the command receives the startup config instead of rereading it", async () => {
+  let reads = 0;
+  type CommandHandler = (
+    args: string,
+    ctx: ExtensionCommandContext,
+  ) => Promise<void>;
+  let commandHandler: CommandHandler | undefined;
+  await webToolsExtension(
+    {
+      registerTool: () => undefined,
+      registerCommand: (
+        _name: string,
+        options: { handler: CommandHandler },
+      ) => {
+        commandHandler = options.handler;
+      },
+    } as unknown as ExtensionAPI,
+    {
+      readConfig: async () => {
+        reads += 1;
+        return { search: { maxResults: 2 } };
+      },
+      env: {},
+    },
+  );
+  assert.ok(commandHandler);
+  const notifications: string[] = [];
+  await commandHandler("status", {
+    modelRegistry: {},
+    ui: { notify: (text: string) => notifications.push(text) },
+  } as unknown as ExtensionCommandContext);
+  assert.equal(reads, 1);
+  assert.match(notifications[0] ?? "", /search default max results: 2/);
 });
 
 test("invalid config fails extension loading before tool registration", async () => {
@@ -81,7 +117,6 @@ test("invalid config fails extension loading before tool registration", async ()
       } as unknown as ExtensionAPI,
       {
         readConfig: async () => ({ search: { maxResults: 0 } }),
-        readSecrets: async () => ({}),
         env: {},
       },
     ),
@@ -99,7 +134,6 @@ test("web_search registers the public parameter schema", () => {
   assert.deepEqual(schema.properties.provider.enum, [
     "searxng",
     "codex-alpha-search",
-    "tavily",
   ]);
   assert.equal(schema.properties.query.maxLength, 2_000);
   assert.equal(schema.properties.max_results.maximum, 10);
@@ -304,7 +338,6 @@ test("config read failures are classified during extension loading", async () =>
         readConfig: async () => {
           throw new Error(key);
         },
-        readSecrets: async () => ({}),
         env: {},
       },
     ),

@@ -7,12 +7,13 @@
  *   - Otherwise: open a selector listing every complete LLM reply on the
  *     current branch, newest on top. Each reply = all assistant messages
  *     between two role:"user" messages (a full agent run). Pick one -> open
- *     `nvim -R` on a temp .md file containing that reply's text + thinking.
- *     Pass `--thinking` to make inclusion explicit; Alt+P omits thinking.
+ *     `nvim -R` on a temp .md file containing that reply's text, plus thinking
+ *     blocks only when `--thinking` is passed.
  *   - Alt+P opens the latest complete reply directly, without thinking blocks.
  *
- * Text and thinking blocks are included by default and thinking is rendered
- * with a `> ` quote prefix. Other block types (toolCall / images) are omitted.
+ * Only text blocks are included by default. With `--thinking`, thinking blocks
+ * are also included and rendered with a `> ` quote prefix. Other block types
+ * (toolCall / images) are omitted.
  *
  * Pure read-only preview: nothing is written back to the session. The temp
  * file is deleted when nvim exits. User may still `:w!` to another path; only
@@ -44,10 +45,10 @@ const USAGE = "/preview [--thinking]";
 const HELP_TEXT = [
   USAGE,
   "",
-  "  (default)   pick a past reply and preview its text plus thinking in nvim -R",
-  "  --thinking  include thinking blocks explicitly (rendered as markdown quotes)",
+  "  (无参数)    选择一条过往回复，用 nvim -R 只读预览文本内容",
+  "  --thinking  同时包含 thinking blocks（以 Markdown 引用形式显示）",
   "",
-  "Shortcut: Alt+P opens the latest reply read-only without thinking blocks.",
+  "快捷键：Alt+P 直接打开最新回复的只读预览（不包含 thinking blocks）。",
 ].join("\n");
 
 /** Minimal entry shape we read from a session branch. */
@@ -71,9 +72,9 @@ function parsePreviewArgs(
   args: string | undefined,
 ): ParsedPreviewArgs | { error: string } {
   const raw = args?.trim() ?? "";
-  if (raw === "") return { includeThinking: true, showHelp: false };
+  if (raw === "") return { includeThinking: false, showHelp: false };
 
-  let includeThinking = true;
+  let includeThinking = false;
   let showHelp = false;
   for (const token of raw.split(/\s+/)) {
     if (token === "--thinking") {
@@ -81,7 +82,7 @@ function parsePreviewArgs(
     } else if (token === "help" || token === "--help" || token === "-h") {
       showHelp = true;
     } else {
-      return { error: `Unknown argument "${token}"` };
+      return { error: `未知参数 "${token}"` };
     }
   }
 
@@ -192,18 +193,18 @@ async function openPreview(
   options: { includeThinking: boolean; latestOnly: boolean },
 ): Promise<void> {
   if (!ctx.isIdle()) {
-    ctx.ui.notify("The reply is still streaming; try again shortly", "info");
+    ctx.ui.notify("回复尚未结束，请稍后再试", "info");
     return;
   }
 
   if (ctx.mode !== "tui") {
-    ctx.ui.notify("/preview requires an interactive terminal", "error");
+    ctx.ui.notify("/preview 需要交互式终端", "error");
     return;
   }
 
   const records = buildRecords(() => ctx.sessionManager.getBranch());
   if (records.length === 0) {
-    ctx.ui.notify("No reply available to preview yet", "info");
+    ctx.ui.notify("尚无可预览的回复", "info");
     return;
   }
 
@@ -214,12 +215,12 @@ async function openPreview(
     // #1 = oldest ... #N = newest; list newest-first so #N is on top.
     const labels = records.map((rec, i) => {
       const snippet = openingLineOfRun(rec);
-      const text = snippet ? truncate(snippet, SNIPPET_MAX) : "(no text)";
+      const text = snippet ? truncate(snippet, SNIPPET_MAX) : "(无文本)";
       return `#${i + 1} · ${text}`;
     });
     const ordered = [...labels].reverse();
 
-    const choice = await ctx.ui.select("Preview which reply:", ordered);
+    const choice = await ctx.ui.select("预览哪条回复：", ordered);
     if (choice === undefined) return; // cancelled
 
     const idx = labels.indexOf(choice);
@@ -231,7 +232,7 @@ async function openPreview(
 
   const body = renderRecordBody(record, options.includeThinking);
   if (!body.trim()) {
-    ctx.ui.notify("That reply has nothing to preview", "info");
+    ctx.ui.notify("该回复无可预览内容", "info");
     return;
   }
 
@@ -247,14 +248,11 @@ async function openPreview(
       clearScreen: true,
     });
     if (result.kind === "not-found") {
-      ctx.ui.notify(
-        "nvim not found; make sure it is installed and on PATH",
-        "error",
-      );
+      ctx.ui.notify("未找到 nvim，请确认已安装并在 PATH 中", "error");
       return;
     }
     if (result.kind === "launch-error") {
-      ctx.ui.notify("/preview failed to open nvim", "error");
+      ctx.ui.notify("/preview 打开 nvim 失败", "error");
       return;
     }
   } finally {
@@ -274,7 +272,7 @@ export default function (pi: ExtensionAPI) {
     handler: async (args, ctx) => {
       const parsed = parsePreviewArgs(args);
       if ("error" in parsed) {
-        ctx.ui.notify(`${parsed.error}; usage: ${USAGE}`, "error");
+        ctx.ui.notify(`${parsed.error}，用法：${USAGE}`, "error");
         ctx.ui.notify(HELP_TEXT, "info");
         return;
       }

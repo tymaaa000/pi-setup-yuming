@@ -1,73 +1,73 @@
 ---
-description: Generate a GitHub community weekly report (PR / Issue / Release), filtered by topic
-argument-hint: "<topic> [time range] [Top-N, default 35, recommended 30–40]"
+description: 生成 GitHub 社区周活动报告（PR / Issue / Release），按主题过滤
+argument-hint: "<主题> [时间范围] [Top-N，默认 35，建议 30–40]"
 ---
 
-You are a research analyst focused on open-source community activity. Your job is to produce a high-quality **GitHub community weekly report** written in Chinese.
+你是一位专注开源社区动态的研究分析师。你的任务是用中文生成一份高质量的 **GitHub 社区周活动报告**。
 
-## Inputs
+## 输入
 
-- **Topic** (required): `$1`. A keyword (such as `MCP`, `AI Agent`, `vllm`) or a single repository `owner/repo`.
-- **Time range** (optional): `${2:-past 7 days}`, overridable by the second segment of `$ARGUMENTS`.
-- **Top-N** (optional): `${3:-35}`. Upper bound for report cards (Release + PR + Issue combined), **30–40 recommended**; default `35`. If the user gives an integer outside 30–40, honor it but note it in `.quality-note`.
+- **主题**（必填）：`$1`。关键词（如 `MCP`、`AI Agent`、`vllm`）或单一仓库 `owner/repo`。
+- **时间范围**（可选）：`${2:-过去 7 天}`，可由 `$ARGUMENTS` 中第二段覆盖。
+- **Top-N**（可选）：`${3:-35}`。入报事件卡片上限（Release + PR + Issue 合计），**建议 30–40**；默认 `35`。若用户给出不在 30–40 的整数，仍可尊重，但在 `.quality-note` 标明。
 
-If `$1` is empty, print usage and stop:
+若 `$1` 为空，输出用法说明并停止：
 
 ```
-Usage: /github-weekly <topic> [time range] [Top-N]
-Examples: /github-weekly MCP
-          /github-weekly AI Agent past 7 days
-          /github-weekly vllm/vllm 2026-07-20
-          /github-weekly MCP past 7 days 40
+用法：/github-weekly <主题> [时间范围] [Top-N]
+示例：/github-weekly MCP
+      /github-weekly AI Agent 过去 7 天
+      /github-weekly vllm/vllm 2026-07-20
+      /github-weekly MCP 过去 7 天 40
 ```
 
-Resolve the time range into an ISO date `$SINCE` (default: 7 days before today, `YYYY-MM-DD`). The report covers `$SINCE` through today. Parsing note: if the second segment is a bare number, treat it as `Top-N` and keep the default time range.
+将时间范围解析为 ISO 日期 `$SINCE`（默认：今天往前推 7 天，格式 `YYYY-MM-DD`）。报告覆盖 `$SINCE` ~ 今天。解析时注意：若第二段是纯数字，则视为 `Top-N`，时间范围仍用默认。
 
-## Core principle
+## 核心理念
 
-**Verifiable GitHub activity beats second-hand media interpretation.**
+**可验证的 GitHub 行为 > 媒体二手解读。**
 
-- Primary facts come from `gh` (PR / Issue / Release).
-- websearch only explains "why it matters" and community reaction; it never replaces GitHub facts.
-- Every item carries a source link and verifiable metrics (⭐ / comments / reactions) where possible.
-- **Top-N card cutoff**: after filtering, rank by signal strength and take the top `$TOP_N` (default 35, recommended 30–40) across Release + PR + Issue. Do not pad with low-value entries to reach N, and do not silently shrink to a smaller Top-K.
+- 主事实层来自 `gh`（PR / Issue / Release）
+- websearch 只解释「为什么重要」和社区反应，不替代 GitHub 事实
+- 每条内容尽量带来源链接与可核验指标（⭐ / comments / reactions）
+- **入报卡片 Top-N 截断**：筛选达标后按信号强度排序，Release+PR+Issue 合计取前 `$TOP_N`（默认 35，建议 30–40）；禁止为凑满 N 填充低价值条目，也禁止隐性压到更小 Top-K
 
-## Execution flow
+## 执行流程
 
-### Step 0: Parse the topic and query variants
+### Step 0：解析主题与 Query 变体
 
-1. Determine the shape:
-   - `owner/repo` → **single-repository mode**
-   - anything else → **topic search mode**
-2. Build query variants:
-   - keep the user's original wording
-   - if the topic is Chinese, add 1–2 English equivalents (for example 智能体 → `agent` / `AI agent`)
-   - record them as `$Q_PRIMARY`, `$Q_ALT1`, …
-3. Compute `$SINCE` and the report date `$TODAY` (local date).
+1. 判断主题形态：
+   - `owner/repo` → **单仓模式**
+   - 其他 → **主题搜索模式**
+2. 生成 query 变体：
+   - 保留用户原文
+   - 若主题含中文，扩展 1–2 个英文等价词（如「智能体」→ `agent` / `AI agent`）
+   - 记录为 `$Q_PRIMARY`、`$Q_ALT1`…
+3. 计算 `$SINCE` 与报告日 `$TODAY`（本机日期）。
 
-### Step 1: Collect GitHub data in the main agent (run `gh` through bash)
+### Step 1：主 Agent 采集 GitHub（直接 bash 跑 `gh`）
 
-**Never** use websearch to enumerate GitHub PRs/Issues. Use `gh` for all of it. Parallel bash calls are fine.
+**不要**用 websearch 搜 GitHub 列表。全部用 `gh`。可按需并行多条 bash。
 
-#### Single-repository mode (topic = `owner/repo`)
+#### 单仓模式（主题 = `owner/repo`）
 
 ```bash
-# PRs merged this week
+# PR：本周合并
 gh search prs --repo "$OWNER/$REPO" --merged --merged-at=">=$SINCE" \
   --sort reactions --limit 50 \
   --json title,url,repository,author,createdAt,closedAt,labels,commentsCount,isDraft,body
 
-# Issues opened this week (PRs excluded)
+# Issue：本周新建（排除 PR）
 gh search issues --repo "$OWNER/$REPO" --created=">=$SINCE" \
   --sort comments --limit 50 \
   --json title,url,repository,author,createdAt,state,commentsCount,labels,body
 
-# Releases
+# Release
 gh api "repos/$OWNER/$REPO/releases" --paginate \
   --jq "[.[] | select(.published_at >= \"$SINCE\") | {tag_name,name,html_url,published_at,prerelease,draft,body}]"
 ```
 
-#### Topic search mode
+#### 主题搜索模式
 
 **G1 — PR**
 
@@ -77,7 +77,7 @@ gh search prs "$Q_PRIMARY" --merged --merged-at=">=$SINCE" \
   --json title,url,repository,author,createdAt,closedAt,labels,commentsCount,isDraft,body
 ```
 
-If the result set is too small, search again with `$Q_ALT*` and deduplicate.
+若结果过少，用 `$Q_ALT*` 再搜一轮并去重。
 
 **G2 — Issue**
 
@@ -87,65 +87,65 @@ gh search issues "$Q_PRIMARY" --created=">=$SINCE" \
   --json title,url,repository,author,createdAt,state,commentsCount,labels,body
 ```
 
-**G3 — Release (two steps)**
+**G3 — Release（两步）**
 
 ```bash
-# 1) Discover candidate repositories
+# 1) 发现候选仓库
 gh search repos "$Q_PRIMARY" --sort stars --limit 20 \
   --json fullName,description,stargazersCount,url,updatedAt
 
-# 2) Pull releases for the top repos (descending by stargazersCount, first 15)
-# For each owner/repo:
+# 2) 对 top repos 拉 releases（按 stargazersCount 降序，取前 15）
+# 对每个 owner/repo：
 gh api "repos/$OWNER/$REPO/releases" \
   --jq "[.[] | select(.published_at >= \"$SINCE\" and .draft == false) | {repo:\"$OWNER/$REPO\",tag_name,name,html_url,published_at,prerelease,body}]"
 ```
 
-Mind rate limits: sequential calls are enough; do not burn the API for nothing.
+注意 rate limit：顺序拉取即可，不要无意义打满 API。
 
-Optional supplement (when repository star counts must be exact):
+可选补充（需要更准的仓库星数时）：
 
 ```bash
 gh api "repos/$OWNER/$REPO" --jq "{fullName:.full_name, stars:.stargazers_count, description:.description, url:.html_url}"
 ```
 
-### Step 2: Filter, cluster, and select the top events
+### Step 2：过滤、聚类、选出 Top 事件
 
-#### Keep (any one is enough)
+#### 保留（满足任一即可）
 
-- repository stars ≥ 100
-- comments ≥ 5, or clearly high reactions / interactions
-- belongs to the topic's top 20 repositories by stars
-- explicitly involves major / breaking / security / a new capability surface (API, protocol, runtime)
+- 仓库 stars ≥ 100
+- comments ≥ 5，或 reactions / interactions 明显偏高
+- 落在主题下 stars 排名前 20 的仓库
+- 明确涉及 major / breaking / security / 新能力面（API、协议、runtime）
 
-#### Drop
+#### 丢弃
 
-- bots such as dependabot / renovate (**unless security-related**)
-- awesome-list "add link" PRs, empty PRs with no substantive body
-- personal demos, coursework, items that only touch the topic in the title
-- draft releases / clear prereleases with no community discussion (unless the topic is that project itself)
+- dependabot / renovate 等 bot（**security** 相关除外）
+- awesome-list「加链接」类 PR、无实质 body 的空 PR
+- 个人 demo、课程作业、与主题仅标题擦边的条目
+- draft release / 明显预发布且无社区讨论（除非主题本身就是该项目）
 
-#### Intermediate output
+#### 产出中间结果
 
-1. **Top active repositories**: at most about `$TOP_N / 3` (roughly 10–15, ranked by this week's relevant PR/Issue/Release density plus stars; these are not report cards and do not count against `$TOP_N`)
-2. **Candidate cards** (Release + high-signal PR + discussed Issue, **combined** ceiling `$TOP_N`, default 35, recommended 30–40)
-   - Rank by signal strength, then cut; let the type mix follow this week's actual distribution instead of fixed per-type quotas
-   - Soft guidance (may float): Release / PR / Issue can each take a share of the report pool; when one type is unusually strong this week it may take a larger share
-   - Qualifying total M ≤ `$TOP_N` → report everything; M > `$TOP_N` → report only the top `$TOP_N`, and state both "M qualified" and "Top-N reported" in the overview
-3. **Top events needing external interpretation**: 3–8 items (heavyweight releases, breaking merges, contested issues) — websearch only
+1. **Top 活跃仓库** 最多约 `$TOP_N / 3`（约 10–15，按本周相关 PR/Issue/Release 密度 + stars；不计入卡片 Top-N）
+2. **候选卡片**（Release + 高信号 PR + 热议 Issue **合计**上限 `$TOP_N`，默认 35，建议 30–40）
+   - 按信号强度统一排序后截断；类型配比按本周实际分布，不必写死「各类型固定上限」
+   - 软性参考（可浮动）：Release / PR / Issue 大致均可占入报池的一部分，某一类本周特别强时可占更高比例
+   - 达标总数 M ≤ `$TOP_N` → 全部入报；M > `$TOP_N` → 只输出前 `$TOP_N`，速览写明「达标 M，入报 Top-N」
+3. **需外部解读的 Top 事件清单** 3–8 条（从入报列表挑：重磅 release、breaking 合并、高争议 issue）——仅用于 websearch
 
-Candidate record fields: `type | title | repository | link | date | metrics | one-sentence factual summary`.
+每条候选记录字段：`类型 | 标题 | 仓库 | 链接 | 日期 | 指标 | 一句话事实摘要`。
 
-### Step 3: websearch subagents (parallel, context only)
+### Step 3：websearch 子 Agent（并行，仅补上下文）
 
-Only for the Step 2 top events. Do **not** re-enumerate GitHub PRs/Issues with websearch.
+只针对 Step 2 的 Top 事件，**不要**用 websearch 重新枚举 GitHub PR/Issue。
 
-Start them together, each with `run_in_background: true`:
+同时启动，每个 `run_in_background: true`：
 
-**Agent W1 — Event/release interpretation** (start when there is ≥1 heavyweight release or major merge)
+**Agent W1 — 事件/Release 解读**（有 ≥1 个重磅 release 或重大合并时启动）
 
 ```
 subagent_type: "websearch"
-description: "community-event interpretation"
+description: "社区-事件解读"
 prompt: |
   Time window: past 7 days (since $SINCE).
   Topic: $Q_PRIMARY
@@ -158,11 +158,11 @@ prompt: |
 run_in_background: true
 ```
 
-**Agent W2 — Community reaction** (start when there is a contested issue or a breaking change)
+**Agent W2 — 社区反应**（有争议 issue 或 breaking change 时启动）
 
 ```
 subagent_type: "websearch"
-description: "community-reaction discussion"
+description: "社区-反应讨论"
 prompt: |
   Time window: past 7 days (since $SINCE).
   Topic: $Q_PRIMARY
@@ -173,11 +173,11 @@ prompt: |
 run_in_background: true
 ```
 
-**Agent W3 — Theme narrative** (always start)
+**Agent W3 — 主题趋势叙事**（默认总是启动）
 
 ```
 subagent_type: "websearch"
-description: "community-theme trends"
+description: "社区-主题趋势"
 prompt: |
   Time window: past 7 days (since $SINCE).
   Open-source theme: $Q_PRIMARY (alts: $Q_ALT*)
@@ -187,9 +187,9 @@ prompt: |
 run_in_background: true
 ```
 
-Record `$ID_W1`, `$ID_W2`, `$ID_W3` (skip the ones not started).
+记录 `$ID_W1`, `$ID_W2`, `$ID_W3`（未启动的跳过）。
 
-### Step 4: Wait for the websearch results
+### Step 4：等待 websearch 结果
 
 ```
 get_subagent_result(agent_id: $ID_W1, wait: true)
@@ -197,30 +197,30 @@ get_subagent_result(agent_id: $ID_W2, wait: true)
 get_subagent_result(agent_id: $ID_W3, wait: true)
 ```
 
-### Step 5: Gap assessment and supplements
+### Step 5：缺口评估与补充
 
-Checklist:
+对照清单：
 
-- [ ] At least 1 high-quality Release **or** an explicit statement that no significant release happened this week
-- [ ] At least 2 high-signal PRs (single-repository mode may relax to 1)
-- [ ] At least 2 discussed Issues (or a note that this week leaned toward implementation with little discussion)
-- [ ] At least 1 external interpretation or community reaction for the top events (websearch)
-- [ ] Material for "trends / follow-up tracking"
+- [ ] 至少 1 条高质量 Release **或** 明确说明本周无显著发版
+- [ ] 至少 2 条高信号 PR（单仓模式可放宽到 1）
+- [ ] 至少 2 条有讨论度的 Issue（或说明本周偏实现、讨论少）
+- [ ] Top 事件有至少 1 条外部解读或社区反应（websearch）
+- [ ] 有「趋势/持续跟踪」素材
 
-If a category is short:
+若某类不足：
 
-- **GitHub side**: switch to `$Q_ALT*`, relax the stars/comments thresholds, or run a targeted `gh search` for a top repo
-- **Interpretation side**: start one more focused websearch, and bind the prompt to specific event URLs
+- **GitHub 侧**：换 `$Q_ALT*`、放宽 stars/comments 阈值，或对 Top repo 做定向 `gh search`
+- **解读侧**：再启 1 个聚焦 websearch，prompt 必须绑定具体事件 URL
 
-There is no cap on supplements, but each one needs a stated reason.
+补充数量不设上限，但每条要有填补理由。
 
-### Step 6: Assemble and generate the HTML
+### Step 6：汇总并生成 HTML
 
-Assemble in Chinese and write a **self-contained HTML** file into the current working directory.
+用中文汇总，生成**自包含 HTML**，写入当前工作目录。
 
-**File path**: `./YYYY-MM-DD-github-weekly.html` (`YYYY-MM-DD` = `$TODAY`)
+**文件路径**：`./YYYY-MM-DD-github-weekly.html`（`YYYY-MM-DD` = `$TODAY`）
 
-**The HTML structure must follow this template strictly** — do not restructure it. When a block has no content, write 本周暂无 as appropriate; do not delete sections.
+**HTML 结构必须严格遵循以下模板**——不要改整体结构；缺内容的区块如实写「本周暂无」，不要删 section。
 
 ```html
 <!DOCTYPE html>
@@ -228,7 +228,7 @@ Assemble in Chinese and write a **self-contained HTML** file into the current wo
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>GitHub 社区周报 — {topic} — YYYY-MM-DD</title>
+<title>GitHub 社区周报 — {主题} — YYYY-MM-DD</title>
 <style>
   :root {
     --bg: #fafafa;
@@ -395,14 +395,13 @@ Assemble in Chinese and write a **self-contained HTML** file into the current wo
 
   <div class="header">
     <h1>GitHub 社区周报</h1>
-    <div class="theme">{topic}</div>
+    <div class="theme">{主题}</div>
     <p class="meta">覆盖周期：YYYY-MM-DD ~ YYYY-MM-DD &nbsp;|&nbsp; 报告生成：YYYY-MM-DD</p>
   </div>
 
-  <!-- Quality note: keep the .quality-note block when high-quality items are clearly
-       lacking; otherwise delete this block -->
+  <!-- 质量说明：高质量条目明显不足时保留 .quality-note；否则删除此块 -->
 
-  <!-- ==================== 1. Weekly overview ==================== -->
+  <!-- ==================== 一、本周社区速览 ==================== -->
   <div class="section">
     <div class="section-title"><span class="num">一</span> 本周社区速览</div>
 
@@ -422,11 +421,11 @@ Assemble in Chinese and write a **self-contained HTML** file into the current wo
     </ul>
   </div>
 
-  <!-- ==================== 2. Notable releases ==================== -->
+  <!-- ==================== 二、重要 Release ==================== -->
   <div class="section">
     <div class="section-title"><span class="num">二</span> 重要 Release</div>
 
-    <!-- one .card per item; when empty use <p class="empty">本周暂无显著 Release</p> -->
+    <!-- 每条 .card；无则 <p class="empty">本周暂无显著 Release</p> -->
     <div class="card">
       <h3>owner/repo · vX.Y.Z — 一句话亮点</h3>
       <div class="field">
@@ -448,7 +447,7 @@ Assemble in Chinese and write a **self-contained HTML** file into the current wo
     </div>
   </div>
 
-  <!-- ==================== 3. High-signal PRs ==================== -->
+  <!-- ==================== 三、高信号 PR ==================== -->
   <div class="section">
     <div class="section-title"><span class="num">三</span> 高信号 PR</div>
 
@@ -473,7 +472,7 @@ Assemble in Chinese and write a **self-contained HTML** file into the current wo
     </div>
   </div>
 
-  <!-- ==================== 4. Discussed issues ==================== -->
+  <!-- ==================== 四、热议 Issue ==================== -->
   <div class="section">
     <div class="section-title"><span class="num">四</span> 热议 Issue</div>
 
@@ -498,10 +497,10 @@ Assemble in Chinese and write a **self-contained HTML** file into the current wo
     </div>
   </div>
 
-  <!-- ==================== 5. Community interpretation ==================== -->
+  <!-- ==================== 五、社区解读 ==================== -->
   <div class="section">
     <div class="section-title"><span class="num">五</span> 社区解读</div>
-    <!-- mostly from websearch; every point must trace back to the GitHub facts above -->
+    <!-- 主要来自 websearch；必须能回指到上面的 GitHub 事实 -->
 
     <div class="summary-block">
       <h4>共识</h4>
@@ -520,13 +519,13 @@ Assemble in Chinese and write a **self-contained HTML** file into the current wo
 
     <div class="summary-block">
       <h4>值得引用的原话</h4>
-      <!-- optional; only when a maintainer or core contributor said something quotable -->
+      <!-- 可选；有维护者/核心贡献者原话再写 -->
       <blockquote>……</blockquote>
       <div style="font-size:13px;color:var(--muted)">— 姓名/handle，身份 — <a href="...">出处</a></div>
     </div>
   </div>
 
-  <!-- ==================== 6. Trends and follow-up ==================== -->
+  <!-- ==================== 六、趋势与持续跟踪 ==================== -->
   <div class="section">
     <div class="section-title"><span class="num">六</span> 趋势与持续跟踪</div>
 
@@ -547,24 +546,24 @@ Assemble in Chinese and write a **self-contained HTML** file into the current wo
 </html>
 ```
 
-## Quality standards
+## 质量标准
 
-- Every GitHub fact has a clickable official link (PR / Issue / Release)
-- Prefer activity that happened or shipped after `$SINCE`
-- Report body in Chinese; repository names, titles, labels, and proper nouns keep their original English
-- **Primary data must come from `gh`**; websearch must never serve as the PR/Issue list source
-- Exclude: bot noise, awesome-list link additions, no substantive change, topic-irrelevant near-misses
-- A single uncorroborated external interpretation gets a ⚠️ single-source marker at the citation
-- Report cards total **Top-`$TOP_N`** (default 35, recommended 30–40); never silently shrink to a smaller Top-K, and never pad to N with low-score items
-- When truncation happens, the overview states both "M qualified" and "Top-N reported"
-- When too few high-quality cards survive filtering, say so honestly in `.quality-note`; **never pad with low-value items**
-- Counts in the stats row match the card lists (do not write "merged 40" while listing 2 without explaining the filtering)
-- Write the final HTML with `write`
-- Open the HTML preview with `open` when done
+- 每条 GitHub 事实有可点击的官方链接（PR / Issue / Release）
+- 优先 `$SINCE` 之后发生或发布的内容
+- 报告正文中文；仓库名、标题、标签、专有名词保留英文原文
+- **主数据必须来自 `gh`**；websearch 不得充当 PR/Issue 列表来源
+- 排除：bot 噪音、awesome 加链接、无实质改动、与主题无关擦边项
+- 单一无法交叉验证的外部解读，在来源处标注「⚠️ 单一来源」
+- 入报事件卡片合计 **Top-`$TOP_N`**（默认 35，建议 30–40）；禁止隐性再压到更小 Top-K，也禁止用低分条目凑满 N
+- 发生截断时，速览须同时给出「达标 M」与「入报 Top-N」
+- 筛选后高质量卡片过少时，用 `.quality-note` 如实说明，**不填充低价值条目**
+- 数字统计与卡片列表一致（不要写「合并 40」却只列 2 条又不说明「筛选后」）
+- 使用 `write` 写入最终 HTML
+- 完成后用 `open` 打开 HTML 预览
 
-## Tool constraints
+## 工具使用约束
 
-1. Main agent: call `gh` through `bash`; parse JSON with `jq`
-2. Subagents: only `websearch`, for interpretation and trends
-3. Never paste raw `gh` JSON into the HTML; filter first, then write cards
-4. When `gh` fails (auth/rate limit): report the error, optionally degrade to "already collected data + websearch", and say so in `.quality-note`
+1. 主 Agent：用 `bash` 调用 `gh`；解析 JSON 可用 `jq`
+2. 子 Agent：仅 `websearch`，用于解读与趋势
+3. 不要把完整 `gh` 原始 JSON 糊进 HTML；先筛选再写卡片
+4. `gh` 失败时（认证/限流）：说明错误，可降级为「仅已拿到的数据 + websearch」，并在 `.quality-note` 标明

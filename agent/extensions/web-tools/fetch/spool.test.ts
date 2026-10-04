@@ -3,6 +3,7 @@ import {
   chmod,
   mkdir,
   mkdtemp,
+  open,
   readFile,
   rm,
   stat,
@@ -23,9 +24,7 @@ function fixtureDirectory(prefix: string): Promise<string> {
   return mkdtemp(join(tmpdir(), prefix));
 }
 
-test("createTempSpool writes bounded response and final content files", {
-  skip: process.platform === "win32",
-}, async () => {
+test("createTempSpool writes bounded response and final content files", async () => {
   const base = await fixtureDirectory("pi-web-tools-spool-");
   const spool = await createTempSpool(base);
   try {
@@ -45,7 +44,7 @@ test("createTempSpool writes bounded response and final content files", {
   }
 });
 
-test("createTempSpool rejects a response over 1 MiB", async () => {
+test("createTempSpool rejects a response over 50 MiB", async () => {
   const base = await fixtureDirectory("pi-web-tools-spool-limit-");
   const spool = await createTempSpool(base);
   try {
@@ -55,6 +54,105 @@ test("createTempSpool rejects a response over 1 MiB", async () => {
         error instanceof WebFetchError && error.code === "invalid-response",
     );
   } finally {
+    await spool.cleanup();
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
+test("createTempSpool rejects writes after close and finalization", async () => {
+  const base = await fixtureDirectory("pi-web-tools-spool-state-");
+  const spool = await createTempSpool(base);
+  try {
+    await spool.close();
+    await assert.rejects(
+      spool.write(new TextEncoder().encode("closed")),
+      (error: unknown) =>
+        error instanceof WebFetchError &&
+        error.code === "invalid-response" &&
+        error.message === "The fetch response spool is closed.",
+    );
+
+    await spool.saveText("final content");
+    await assert.rejects(
+      spool.write(new TextEncoder().encode("finalized")),
+      (error: unknown) =>
+        error instanceof WebFetchError &&
+        error.code === "invalid-response" &&
+        error.message === "The fetch response has already been finalized.",
+    );
+  } finally {
+    await spool.cleanup();
+    await spool.cleanup();
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
+test("createTempSpool rejects repeated saveText calls", async () => {
+  const base = await fixtureDirectory("pi-web-tools-spool-finalize-");
+  const spool = await createTempSpool(base);
+  try {
+    await spool.saveText("first content");
+    await assert.rejects(
+      spool.saveText("second content"),
+      (error: unknown) =>
+        error instanceof WebFetchError && error.code === "invalid-response",
+    );
+  } finally {
+    await spool.cleanup();
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
+test("createTempSpool serializes writes and reserves the size limit", async () => {
+  const base = await fixtureDirectory("pi-web-tools-spool-concurrent-");
+  const spool = await createTempSpool(base);
+  const chunkSize = Math.floor(MAX_FETCH_CONTENT_BYTES / 2) + 1;
+  const chunk = new Uint8Array(chunkSize);
+  try {
+    const first = spool.write(chunk);
+    await assert.rejects(
+      spool.write(chunk),
+      (error: unknown) =>
+        error instanceof WebFetchError && error.code === "invalid-response",
+    );
+    await first;
+    assert.equal(spool.bytes, chunkSize);
+    assert.equal((await stat(spool.responsePath)).size, chunkSize);
+  } finally {
+    await spool.cleanup();
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
+test("createTempSpool completes short file handle writes", async () => {
+  const base = await fixtureDirectory("pi-web-tools-spool-write-");
+  const probe = await open(join(base, "probe"), "w+");
+  const fileHandlePrototype = Object.getPrototypeOf(probe) as {
+    write: (
+      chunk: Uint8Array,
+    ) => Promise<{ bytesWritten: number; buffer: Uint8Array }>;
+  };
+  const originalWrite = fileHandlePrototype.write;
+  let writeCalls = 0;
+  fileHandlePrototype.write = async function (this: unknown, chunk) {
+    writeCalls++;
+    if (writeCalls === 1) {
+      return originalWrite.call(this, chunk.subarray(0, 1));
+    }
+    return originalWrite.call(this, chunk);
+  };
+
+  const spool = await createTempSpool(base);
+  try {
+    await spool.write(new TextEncoder().encode("short file handle write"));
+    assert.equal(
+      await readFile(spool.responsePath, "utf8"),
+      "short file handle write",
+    );
+    assert.equal(writeCalls, 2);
+  } finally {
+    fileHandlePrototype.write = originalWrite;
+    await probe.close();
     await spool.cleanup();
     await rm(base, { recursive: true, force: true });
   }

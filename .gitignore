@@ -1,11 +1,10 @@
 # Secrets
 agent/auth.json
-agent/models.json
 agent/trust.json
+web-search.json
 
 # Local model alias bindings (machine-specific)
 agent/model-alias.json
-agent/subagent-model.json
 
 # Per-extension runtime state
 agent/extensions/commit/last_model.json
@@ -13,21 +12,23 @@ agent/extensions/commit/last_model.json
 # Chrome DevTools extension tool selection (auto-generated)
 agent/pi-chrome-devtools.json
 
-# Node
-agent/npm/node_modules/
-agent/extensions/**/node_modules/
+# Git
+agent/git/
 
-# Context telemetry (runtime-owned)
-agent/context-budget/
+# Node
+agent/npm/
+agent/extensions/**/node_modules/
+agent/extensions/copet
 
 # Sessions (transient)
 agent/sessions/
+pi-acp/
+
+# pi-web-access runtime cache (private, contains fetched content)
+web-search-cache/
 
 # pi-websearch runtime PID locks
 agent/searxng-instances/
-
-# Local SearXNG environment overrides
-searxng/.env
 
 # Plan files
 plan.md

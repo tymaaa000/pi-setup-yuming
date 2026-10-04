@@ -33,8 +33,7 @@ Boundary
 Search
 ├── core/            -> contracts, normalization, routing, classified errors
 ├── providers/searxng/
-├── providers/codex/ -> Codex OAuth and alpha/search wire format
-└── providers/tavily/ -> Tavily /search wire format (best as fallback)
+└── providers/codex/ -> Codex OAuth and alpha/search wire format
 
 Fetch
 ├── fetch/router.ts          -> GitHub then native HTTP dispatch
@@ -68,7 +67,7 @@ web_fetch(url, raw)
 │     │  ├─ small repository -> CloneManager -> gh repo clone/git clone
 │     │  └─ large/failing clone -> gh api
 │     └─ fetchDocument()
-│        ├─ Node fetch()
+│        ├─ Node global fetch() with Chrome-style HTTP headers
 │        ├─ follow redirects
 │        ├─ stream response into bounded spool
 │        └─ decodeDocument()
@@ -80,9 +79,10 @@ web_fetch(url, raw)
 ## Native HTTP
 
 Native HTTP uses the Node global `fetch`, not a shell command. It sends a GET
-request with fixed `User-Agent` and `Accept` headers, follows normal HTTP
-redirects, checks the status, and streams the response body to a temporary
-file. A response body larger than 1 MiB is cancelled.
+request with Chrome-style HTTP headers, follows normal HTTP redirects,
+checks the status, and streams the response body to a temporary file. A
+response body larger than 50 MiB is cancelled. The transport remains Node's
+HTTP stack; these headers do not change its TLS or HTTP/2 fingerprint.
 
 The body is decoded as text, JSON, XML or HTML. HTML extraction removes script,
 style, noscript and template blocks, extracts the title, converts block tags to
@@ -103,7 +103,8 @@ The model receives a small inline result for short content and a preview plus
 
 The raw response is first streamed through a bounded `response.bin` and is then
 converted to `content.txt`; the intermediate file is removed. Failed or
-cancelled operations remove the directory.
+cancelled operations remove the directory. Expired spool cleanup is owned by
+extension startup rather than detached from individual fetch requests.
 
 ## GitHub strategy
 
@@ -118,14 +119,16 @@ https://github.com/{owner}/{repo}/tree/{ref}/{path}
 Issue, pull request, release, action, wiki and other UI pages use native HTTP.
 
 `mode=auto` resolves repository metadata through `gh api`. Small repositories
-use a shallow, single-branch clone. The clone is cached under a hashed key so
-owner, repository and ref cannot create arbitrary local paths. The repository
-path is returned as `repositoryPath`; generated tree or file content is also
-saved to `content.txt`.
+use a shallow, single-branch clone. Repositories known to exceed the configured
+threshold are never cloned: GitHub code-content handling is API-only, with
+ordinary native HTTP still available when the GitHub API cannot serve the URL.
+The clone is cached under a hashed key so owner, repository and ref cannot create arbitrary
+local paths. The repository path is returned as `repositoryPath`; generated
+tree or file content is also saved to `content.txt`.
 
 The clone does not recurse into submodules, install dependencies, run hooks,
 or execute repository files. A clone timeout, missing command or failed clone
-can fall back to API access. `mode=api` never clones.
+for an eligible repository can fall back to API access. `mode=api` never clones.
 
 `gh` owns GitHub authentication. The extension invokes `gh` and `git` with
 argument arrays and `shell: false`; tokens are not placed in arguments.

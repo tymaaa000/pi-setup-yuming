@@ -8,7 +8,6 @@ import {
   type ResolvedWebFetchConfig,
   type ResolvedWebSearchConfig,
   readConfig,
-  readSecrets,
   resolveConfig,
 } from "./config.ts";
 import { toWebSearchError } from "./core/errors.ts";
@@ -16,6 +15,7 @@ import { WEB_SEARCH_PROVIDER_NAMES } from "./core/types.ts";
 import { toWebFetchError } from "./fetch/errors.ts";
 import { buildFetchOutput } from "./fetch/format.ts";
 import { createFetchRuntime } from "./fetch/router.ts";
+import { cleanupExpiredSpools } from "./fetch/spool.ts";
 import type { FetchRuntime } from "./fetch/types.ts";
 import { buildSearchOutput } from "./format.ts";
 import {
@@ -193,7 +193,6 @@ export function registerWebFetchTool(
 
 export interface WebToolsExtensionDependencies {
   readConfig?: typeof readConfig;
-  readSecrets?: typeof readSecrets;
   env?: NodeJS.ProcessEnv;
 }
 
@@ -202,12 +201,23 @@ export default async function webToolsExtension(
   dependencies: WebToolsExtensionDependencies = {},
 ): Promise<void> {
   try {
-    const raw = await (dependencies.readConfig ?? readConfig)();
-    const secrets = await (dependencies.readSecrets ?? readSecrets)();
-    const config = resolveConfig(raw, dependencies.env, secrets);
-    registerWebSearchTool(pi, { searchConfig: config.search });
-    registerWebFetchTool(pi, { fetchConfig: config.fetch });
-    registerWebToolsCommand(pi);
+    // Resolve the file and environment once. Every registered capability receives
+    // the same startup snapshot so commands cannot drift from the tools.
+    const env = { ...(dependencies.env ?? process.env) };
+    const rawConfig = await (dependencies.readConfig ?? readConfig)();
+    const resolvedConfig = resolveConfig(rawConfig, env);
+    const fetchRuntime = createFetchRuntime();
+    await cleanupExpiredSpools(undefined, fetchRuntime.now?.());
+    registerWebSearchTool(pi, { searchConfig: resolvedConfig.search });
+    registerWebFetchTool(pi, {
+      fetchConfig: resolvedConfig.fetch,
+      fetchRuntime,
+    });
+    registerWebToolsCommand(pi, {
+      config: { rawConfig, resolvedConfig },
+      env,
+      search: searchWeb,
+    });
   } catch (error) {
     throw toWebSearchError(error);
   }

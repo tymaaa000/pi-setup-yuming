@@ -28,16 +28,15 @@ const NVIM_ARGS = ["-R"];
 const HELP_TEXT = [
   "/context-preview [start|stop|status|help]",
   "",
-  "  (no subcommand)  open the most recent provider request payload in nvim -R;",
-  "                   empty when caching is off or no request has been sent yet",
-  "  start            start caching before_provider_request payloads (off by default)",
-  "  stop             stop caching; already cached content stays viewable",
-  "  status           show whether caching is enabled",
-  "  help             show this help",
+  "  (无参数)  用 nvim -R 只读查看最近一次 provider 请求 payload；",
+  "            未启用缓存或尚无请求时内容为空",
+  "  start     开始缓存 before_provider_request 的 payload（默认关闭）",
+  "  stop      停止缓存；已缓存内容保留，仍可打开查看",
+  "  status    显示当前缓存启用/禁用状态",
+  "  help      显示本帮助",
   "",
-  "The payload is the raw HTTP request body sent to the model API: model,",
-  "messages, tools, temperature, and so on. Read-only preview; nothing is",
-  "written back to the session and the temp file is deleted when nvim exits.",
+  "payload 即发送给模型 API 的原始 HTTP 请求体：model、messages、tools、",
+  "temperature 等。纯只读预览，不写入会话；临时文件在 nvim 退出后删除。",
 ].join("\n");
 
 export default function (pi: ExtensionAPI) {
@@ -60,10 +59,7 @@ export default function (pi: ExtensionAPI) {
       "Preview the provider request payload in neovim (read-only). Subcommands: start | stop | status | help",
     handler: async (args, ctx) => {
       if (ctx.mode !== "tui") {
-        ctx.ui.notify(
-          "/context-preview requires an interactive terminal",
-          "error",
-        );
+        ctx.ui.notify("/context-preview 需要交互式终端", "error");
         return;
       }
 
@@ -71,19 +67,19 @@ export default function (pi: ExtensionAPI) {
 
       if (sub === "start") {
         enabled = true;
-        ctx.ui.notify("context-preview enabled", "info");
+        ctx.ui.notify("context-preview 已启用", "info");
         return;
       }
 
       if (sub === "stop") {
         enabled = false;
-        ctx.ui.notify("context-preview disabled (cached content kept)", "info");
+        ctx.ui.notify("context-preview 已禁用（已缓存内容保留）", "info");
         return;
       }
 
       if (sub === "status") {
         ctx.ui.notify(
-          `context-preview: ${enabled ? "enabled" : "disabled"}`,
+          `context-preview: ${enabled ? "已启用" : "已禁用"}`,
           "info",
         );
         return;
@@ -96,7 +92,7 @@ export default function (pi: ExtensionAPI) {
 
       if (sub !== "") {
         // Unknown subcommand — show help instead of silently opening nvim.
-        ctx.ui.notify(`Unknown argument "${sub}"; usage follows:`, "error");
+        ctx.ui.notify(`未知参数 "${sub}"，请参考以下用法：`, "error");
         ctx.ui.notify(HELP_TEXT, "info");
         return;
       }
@@ -117,14 +113,11 @@ export default function (pi: ExtensionAPI) {
           clearScreen: true,
         });
         if (result.kind === "not-found") {
-          ctx.ui.notify(
-            "nvim not found; make sure it is installed and on PATH",
-            "error",
-          );
+          ctx.ui.notify("未找到 nvim，请确认已安装并在 PATH 中", "error");
           return;
         }
         if (result.kind === "launch-error") {
-          ctx.ui.notify("/context-preview failed to open nvim", "error");
+          ctx.ui.notify("/context-preview 打开 nvim 失败", "error");
           return;
         }
       } finally {

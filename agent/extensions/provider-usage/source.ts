@@ -10,30 +10,29 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 export const WIDGET_ID = "provider-usage";
-// Poll every hour; use /usage to refresh on demand.
-export const INTERVAL_MS = 60 * 60 * 1000;
-// A proxied request measured ~4.7s (cold EnvHttpProxyAgent connection); 5s reliably
-// times out, so 15s leaves headroom.
+// 轮询间隔 10 min；需要即时数据时用 /usage 主动刷新。
+export const INTERVAL_MS = 60 * 10 * 1000;
+// 代理路径实测单次请求 ~4.7s（EnvHttpProxyAgent 冷连接），5s 会稳定超时；15s 留足余量。
 export const TIMEOUT_MS = 15 * 1000;
 
 export type Ui = ExtensionContext["ui"];
 export type Registry = ExtensionContext["modelRegistry"];
 
-/** Result of one fetch: the display line plus window data used by isWarning. */
+/** 一次拉取的结果：显示行 + 供 isWarning 判断的窗口数据 */
 export type UsageData = {
   line: string;
   windows: { label: string; percent: number }[];
-  /** Balance amounts per currency (for example the DeepSeek balance), used by isWarning. */
+  /** 各币种余额金额（如 DeepSeek 余额），供 isWarning 判断 */
   amounts?: number[];
 };
 
-/** One source per provider; the widget is mutually exclusive and follows the model provider. */
+/** 每个 provider 一个数据源；widget 互斥，由主会话模型 provider 决定显示哪个 */
 export interface WidgetSource {
   provider: string;
-  /** Placeholder line for the first load or when no data is available. */
+  /** 首次加载 / 无数据时的占位行 */
   placeholder: string;
   fetch(apiKey: string, signal: AbortSignal): Promise<UsageData | undefined>;
-  /** Reached a warning state: render in yellow (each source decides). */
+  /** 达到预警状态 → 黄色显示（变色抽象，各 source 实现） */
   isWarning(data: UsageData): boolean;
 }
 

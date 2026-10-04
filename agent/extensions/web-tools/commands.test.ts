@@ -8,7 +8,7 @@ import {
   registerWebToolsCommand,
   type WebToolsCommandDependencies,
 } from "./commands.ts";
-import type { WebToolsFileConfig } from "./config.ts";
+import { resolveConfig, type WebToolsFileConfig } from "./config.ts";
 
 interface CapturedCommand {
   getArgumentCompletions?: (
@@ -26,11 +26,7 @@ function capture(
       command = options;
     },
   } as unknown as ExtensionAPI;
-  registerWebToolsCommand(pi, {
-    env: {},
-    readSecrets: async () => ({}),
-    ...dependencies,
-  });
+  registerWebToolsCommand(pi, { env: {}, ...dependencies });
   assert.ok(command);
   return command;
 }
@@ -80,13 +76,7 @@ test("registerWebToolsCommand: exposes status and provider test arguments", () =
   const command = capture();
   assert.deepEqual(
     command.getArgumentCompletions?.("")?.map((completion) => completion.value),
-    [
-      "status",
-      "test searxng",
-      "test codex-alpha-search",
-      "test codex",
-      "test tavily",
-    ],
+    ["status", "test searxng", "test codex-alpha-search"],
   );
   assert.deepEqual(
     command
@@ -94,19 +84,12 @@ test("registerWebToolsCommand: exposes status and provider test arguments", () =
       ?.map((completion) => completion.value),
     ["test searxng"],
   );
-  assert.deepEqual(
-    command
-      .getArgumentCompletions?.("test ta")
-      ?.map((completion) => completion.value),
-    ["test tavily"],
-  );
   assert.deepEqual(command.getArgumentCompletions?.("configure"), null);
 });
 
 test("/web-tools status: reports separate search and fetch settings", async () => {
   const command = capture({
     readConfig: async () => currentConfig(),
-    readSecrets: async () => ({ tavilyApiKey: "tvly-synthetic-secret" }),
     env: {
       SEARXNG_URL: "http://search.example/private/path",
       SEARXNG_API_KEY: "synthetic-api-key",
@@ -127,10 +110,9 @@ test("/web-tools status: reports separate search and fetch settings", async () =
   assert.match(status, /Codex authentication: configured \(OAuth required\)/);
   assert.match(status, /SearXNG URL: configured \(env\)/);
   assert.match(status, /SearXNG Bearer key: set \(env\)/);
-  assert.match(status, /Tavily key: set \(secrets file\)/);
   assert.doesNotMatch(
     status,
-    /private\/path|synthetic-api-key|synthetic-codex-model|tvly-synthetic-secret/,
+    /private\/path|synthetic-api-key|synthetic-codex-model/,
   );
 });
 
@@ -141,7 +123,7 @@ test("/web-tools configure: is intentionally unavailable", async () => {
   await command.handler("configure", ctx);
 
   assert.deepEqual(notifications, [
-    "/web-tools status\n/web-tools test <searxng|codex-alpha-search|tavily|codex>",
+    "/web-tools status\n/web-tools test <searxng|codex-alpha-search>",
   ]);
 });
 
@@ -178,6 +160,42 @@ test("/web-tools test codex: accepts the alias and injects the runtime", async (
   assert.deepEqual(notifications, [
     "Codex alpha/search test succeeded (1 result).",
   ]);
+});
+
+test("/web-tools uses startup snapshots without rereading config", async () => {
+  let reads = 0;
+  let observedMaxResults = 0;
+  const rawConfig = currentConfig();
+  const env = { SEARXNG_URL: "http://search.example" };
+  const command = capture({
+    config: {
+      rawConfig,
+      resolvedConfig: resolveConfig(rawConfig, env),
+    },
+    readConfig: async () => {
+      reads += 1;
+      throw new Error("startup snapshot should be used");
+    },
+    env,
+    search: async (_request, config) => {
+      observedMaxResults = config.maxResults;
+      return {
+        query: "synthetic-query",
+        results: [],
+        provider: config.provider,
+      };
+    },
+  });
+  const { ctx, notifications } = context();
+
+  await command.handler("status", ctx);
+  await command.handler("test searxng", ctx);
+
+  assert.equal(reads, 0);
+  assert.equal(observedMaxResults, 2);
+  assert.equal(notifications.length, 2);
+  assert.match(notifications[0] ?? "", /Codex alpha\/search \(config\)/);
+  assert.match(notifications[1] ?? "", /SearXNG test succeeded \(0 results\)/);
 });
 
 test("/web-tools command errors remain classified and safe", async () => {

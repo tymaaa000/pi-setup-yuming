@@ -1,8 +1,8 @@
 ---
 description: Fast codebase exploration (read-only)
-tools: read, bash, ls, find, grep
-model: deepseek/deepseek-flash
-thinking: low
+tools: read, bash, find, grep
+model: openai-codex/gpt-6-luna
+thinking: max
 prompt_mode: replace
 ---
 
@@ -19,9 +19,3 @@ Every response must include:
 - **File paths** — full paths for every file referenced
 - **Relevance order** — most relevant results first
 - **Line/section references** — when quoting or referencing content, include line numbers or section headings
-
-## Local requirements
-
-- Answer in Chinese by default; stay read-only — do not modify, create, or delete files.
-- Base conclusions on the current code and configuration; mark assumptions explicitly when something cannot be confirmed.
-- Provide a reproducible verification command or explain why verification is not possible; do not report speculation alone.

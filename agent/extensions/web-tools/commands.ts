@@ -7,11 +7,10 @@ import {
   getConfigPath,
   normalizeProviderName,
   type ResolvedWebSearchConfig,
+  type ResolvedWebToolsConfig,
   readConfig,
-  readSecrets,
   resolveConfig,
   type WebToolsFileConfig,
-  type WebToolsSecrets,
 } from "./config.ts";
 import { errorMessageForCode, toWebSearchError } from "./core/errors.ts";
 import type { WebSearchProviderName } from "./core/types.ts";
@@ -19,21 +18,21 @@ import type { WebSearchProviderName } from "./core/types.ts";
 const PROVIDER_LABELS: Record<WebSearchProviderName, string> = {
   searxng: "SearXNG",
   "codex-alpha-search": "Codex alpha/search",
-  tavily: "Tavily",
 };
-const COMMAND_ARGUMENTS = [
-  "status",
-  "test searxng",
-  "test codex-alpha-search",
-  "test codex",
-  "test tavily",
-];
+const COMMAND_ARGUMENTS = ["status", "test searxng", "test codex-alpha-search"];
 const DEFAULT_SEARCH_QUERY = "pi web search connectivity";
 type ConfigSource = "env" | "config" | "default" | "none";
 
+export interface WebToolsConfigSnapshot {
+  readonly rawConfig: WebToolsFileConfig;
+  readonly resolvedConfig: ResolvedWebToolsConfig;
+}
+
 export interface WebToolsCommandDependencies {
+  /** The single configuration snapshot loaded during extension startup. */
+  config?: WebToolsConfigSnapshot;
+  /** Legacy fallback for callers that do not provide a startup snapshot. */
   readConfig?: typeof readConfig;
-  readSecrets?: typeof readSecrets;
   search?: typeof searchWeb;
   env?: NodeJS.ProcessEnv;
 }
@@ -55,11 +54,10 @@ function source(
 
 function statusText(
   raw: WebToolsFileConfig,
+  config: ResolvedWebToolsConfig,
   ctx: ExtensionCommandContext,
   env: NodeJS.ProcessEnv,
-  secrets: WebToolsSecrets,
 ): string {
-  const config = resolveConfig(raw, env, secrets);
   const search = raw.search ?? {};
   const routing = search.routing ?? {};
   const fallbackSource = routing.fallback === undefined ? "default" : "config";
@@ -69,11 +67,6 @@ function statusText(
   const fallbackProviderSource =
     routing.fallbackProvider === undefined ? "default" : "config";
   const keySource = source(env.SEARXNG_API_KEY, undefined, false);
-  const tavilyKeySource = env.TAVILY_API_KEY?.trim()
-    ? "env"
-    : secrets.tavilyApiKey
-      ? "secrets file"
-      : "none";
   let auth = "unavailable";
   try {
     auth = ctx.modelRegistry.getProviderAuthStatus("openai-codex").configured
@@ -94,7 +87,6 @@ function statusText(
     `  SearXNG Bearer key: ${keySource === "none" ? "not set" : `set (${keySource})`}`,
     `  Codex model: configured (${source(undefined, search.codex?.model, true)})`,
     `  Codex authentication: ${auth}`,
-    `  Tavily key: ${tavilyKeySource === "none" ? "not set" : `set (${tavilyKeySource})`}`,
     `  fetch timeout: ${config.fetch.timeoutMs} ms`,
     `  GitHub fetch: ${config.fetch.github.enabled ? "enabled" : "disabled"}`,
     `  GitHub mode: ${config.fetch.github.mode}`,
@@ -103,7 +95,6 @@ function statusText(
     "",
     "Search settings are under search; fetch settings are under fetch.",
     "SearXNG URL and credentials are read from environment variables.",
-    "Tavily credentials are read from web-tools-secrets.json or TAVILY_API_KEY.",
     "GitHub uses gh api or shallow clone when the local commands are available.",
   ].join("\n");
 }
@@ -111,21 +102,17 @@ function statusText(
 async function testProvider(
   ctx: ExtensionCommandContext,
   provider: WebSearchProviderName,
-  deps: Required<WebToolsCommandDependencies>,
+  config: ResolvedWebToolsConfig,
+  search: typeof searchWeb,
 ): Promise<void> {
-  const base = resolveConfig(
-    await deps.readConfig(getConfigPath()),
-    deps.env,
-    await deps.readSecrets(),
-  ).search;
-  const config: ResolvedWebSearchConfig = {
-    ...base,
+  const searchConfig: ResolvedWebSearchConfig = {
+    ...config.search,
     provider,
     fallback: false,
   };
-  const response = await deps.search(
+  const response = await search(
     { query: DEFAULT_SEARCH_QUERY, maxResults: 1 },
-    config,
+    searchConfig,
     { modelRegistry: ctx.modelRegistry },
     ctx.signal,
   );
@@ -136,15 +123,25 @@ async function testProvider(
   );
 }
 
+async function loadSnapshot(
+  provided: WebToolsCommandDependencies,
+  env: NodeJS.ProcessEnv,
+): Promise<WebToolsConfigSnapshot> {
+  if (provided.config) return provided.config;
+  const rawConfig = await (provided.readConfig ?? readConfig)(getConfigPath());
+  return { rawConfig, resolvedConfig: resolveConfig(rawConfig, env) };
+}
+
 export function registerWebToolsCommand(
   pi: ExtensionAPI,
   provided: WebToolsCommandDependencies = {},
 ): void {
-  const deps: Required<WebToolsCommandDependencies> = {
-    readConfig: provided.readConfig ?? readConfig,
-    readSecrets: provided.readSecrets ?? readSecrets,
-    search: provided.search ?? searchWeb,
-    env: provided.env ?? process.env,
+  const env = { ...(provided.env ?? process.env) };
+  const search = provided.search ?? searchWeb;
+  let snapshotPromise: Promise<WebToolsConfigSnapshot> | undefined;
+  const snapshot = (): Promise<WebToolsConfigSnapshot> => {
+    snapshotPromise ??= loadSnapshot(provided, env);
+    return snapshotPromise;
   };
   pi.registerCommand("web-tools", {
     description: "Inspect or test web-tools search configuration.",
@@ -160,28 +157,25 @@ export function registerWebToolsCommand(
       try {
         const [command, providerValue] = args.trim().split(/\s+/, 2);
         if (command === "status") {
+          const { rawConfig, resolvedConfig } = await snapshot();
           ctx.ui.notify(
-            statusText(
-              await deps.readConfig(getConfigPath()),
-              ctx,
-              deps.env,
-              await deps.readSecrets(),
-            ),
+            statusText(rawConfig, resolvedConfig, ctx, env),
             "info",
           );
         } else if (command === "test") {
           const provider = normalizeProviderName(providerValue);
           if (!provider) {
             ctx.ui.notify(
-              "Choose a provider: searxng, codex-alpha-search or tavily.",
+              "Choose a provider: searxng or codex-alpha-search.",
               "error",
             );
             return;
           }
-          await testProvider(ctx, provider, deps);
+          const { resolvedConfig } = await snapshot();
+          await testProvider(ctx, provider, resolvedConfig, search);
         } else {
           ctx.ui.notify(
-            "/web-tools status\n/web-tools test <searxng|codex-alpha-search|tavily|codex>",
+            "/web-tools status\n/web-tools test <searxng|codex-alpha-search>",
             "info",
           );
         }
