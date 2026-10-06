@@ -4,10 +4,9 @@
   "defaultProvider": "openai-codex",
   "defaultModel": "gpt-6.1-sol",
   "packages": [
-    "!npm:@gotgenes/pi-subagents",
     "npm:@narumitw/pi-chrome-devtools",
-    "!npm:@juicesharp/rpiv-ask-user-question",
-    "https://github.com/aqua2k1/pi-kits.git"
+    "https://github.com/aqua2k1/pi-kits.git",
+    "npm:pi-cn"
   ],
   "defaultThinkingLevel": "max",
   "defaultTools": [

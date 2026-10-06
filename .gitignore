@@ -1,6 +1,10 @@
 # Secrets
 agent/auth.json
 agent/trust.json
+agent/web-tools-secrets.json
+agent/memory/
+agent/models-store.json
+agent/*.bak*
 web-search.json
 
 # Local model alias bindings (machine-specific)
