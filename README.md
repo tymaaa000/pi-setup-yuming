@@ -4,7 +4,7 @@ This checkout at `~/pi/` is both the configuration repository and the live Pi ru
 
 - `origin`: `git@github.com:tymaaa000/pi-setup-yuming.git`
 - `upstream`: `git@github.com:aqua2k1/pi-setup.git`
-- Skills run directly from the Git worktree at `~/.agents/`, on `main`, with `origin` pointing to `tymaaa000/agent-setup-yuming` and `upstream` to `aqua2k1/agent-setup`.
+- Skills run directly from the standalone Git repository at `~/.agents/`, on `main`, with `origin` pointing to `tymaaa000/agent-setup-yuming` and `upstream` to `aqua2k1/agent-setup`.
 
 ## Edit the running configuration
 
@@ -20,7 +20,7 @@ uv sync --locked
 uv run skillctl sync
 ```
 
-The additional detached checkout under `~/pi/repos/agent-setup/` only retains the shared Git metadata and a secondary worktree. It is not a configuration source or deployment target. Do not edit it to configure the running Skills, or delete it without accounting for the linked worktree's Git metadata.
+The Skills repository is self-contained at `~/.agents/`, including its own `.git/` history, branches, tags, and remote configuration. No auxiliary checkout or external Git metadata is required; the old `~/pi/repos/agent-setup/` directory has been retired.
 
 ## Runtime and program updates
 
