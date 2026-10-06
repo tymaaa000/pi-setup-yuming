@@ -1,59 +1,53 @@
-# Pi configuration
+# Pi configuration and runtime
 
-Upstream: `aqua2k1/pi-setup`. This fork keeps the same declarative configuration layout.
+This checkout at `~/pi/` is both the configuration repository and the live Pi runtime. It follows the upstream `agent/` layout; there is no separate configuration source or deployment step.
 
-## Configuration sources
+- `origin`: `git@github.com:tymaaa000/pi-setup-yuming.git`
+- `upstream`: `git@github.com:aqua2k1/pi-setup.git`
+- Skills run directly from the Git worktree at `~/.agents/`, on `main`, with `origin` pointing to `tymaaa000/agent-setup-yuming` and `upstream` to `aqua2k1/agent-setup`.
 
-- `agent/settings.json`: model/tool choices and package declarations. Local additions currently include `npm:pi-cn`; installed package files are not committed.
-- `agent/models.json`, `agent/pi-kits.json`, `agent/keybindings.json`: reviewed configuration deployed to the runtime.
-- `agent/extensions/`, `agent/agents/`, `agent/prompts/`, `agent/APPEND_SYSTEM.md`: source-owned resources.
-- Skills use the separate `agent-setup` fork and its `config.toml`; `grilling` is an explicit local choice.
-- `scripts/`: the local Pi launcher, Pi updater/checker, and configuration fetch/deployment scripts needed by this machine. Runtime `~/pi/bin` entries delegate to these tracked implementations.
+## Edit the running configuration
 
-Authentication, private state, sessions, memory, installed packages, CUDA, and model/index caches are not configuration source files. Never commit credentials or copy a whole runtime directory into this repository.
+Edit `agent/settings.json`, `agent/models.json`, `agent/pi-kits.json`, `agent/keybindings.json`, `agent/APPEND_SYSTEM.md`, and the `agent/agents/`, `agent/extensions/`, and `agent/prompts/` resources directly here. Native Pi settings/package operations change these same files; review their Git diffs before committing. Generated settings such as `lastChangelogVersion` follow normal native Pi behavior, without a deployment filter.
 
-## Shared Linux toolchain
+Local choices include `npm:pi-cn` and the `grilling` Skill. Keep intentional choices when reviewing upstream changes. Private authentication, trust, memory, sessions, extension state, installed packages, and official Pi releases stay in place but are excluded from Git. The local runtime rules in `agent/AGENTS.md` remain private. Never commit credentials, private documents, or a whole installed package directory.
 
-Node and its global tools live independently of Pi in `~/.local/opt/node/`. Add `~/.local/opt/node/bin` and `~/pi/bin` to your shell PATH. The tracked Pi launcher selects this Linux Node explicitly; the updater also selects its npm and prepends the shared toolchain to PATH. No Windows Node or Codex binary is used.
-
-Current tool versions are Node `24.21.0`, npm `11.19.0`, Corepack `0.36.0`, Biome `2.5.14`, and Codex CLI `0.160.0`. Codex's version is constrained by the installed pi-kits native-review protocol, not by where the CLI is installed. Installed binaries and authentication are not committed here. Toolchain upgrades remain separate from `update-pi.sh`, which only upgrades Pi.
-
-The relocation is complete: `~/pi/node` no longer exists. The shared toolchain is not a Pi-owned installation or a deployment output.
-
-## Follow upstream
+Skills configuration is edited directly in `~/.agents/config.toml`. Run upstream's own tool there when changing the selected Skills:
 
 ```bash
-~/pi/bin/update-upstream.sh             # fetch only; no merge, commit, push, or install
-lazygit -p ~/pi/repos/pi-setup
-lazygit -p ~/pi/repos/agent-setup
-```
-
-In each repository, review and merge `upstream/main` using normal Git or Lazygit. For a command-line merge that pauses before creating a commit:
-
-```bash
-git merge --no-commit --no-ff upstream/main
-```
-
-Resolve conflicts, retain intentional local choices, and commit when satisfied. No updater copies upstream files over local choices or automatically creates commits. Existing uncommitted edits must be reviewed before merging.
-
-## Deploy reviewed configuration
-
-```bash
-~/pi/bin/sync-pi.sh --check             # default is also read-only
-~/pi/bin/sync-pi.sh --apply             # explicitly approve source -> runtime deployment
-```
-
-The preview reports configuration/resource differences. Before applying, register any wanted runtime edits in the source files. The deployment preserves runtime `lastChangelogVersion` and `deviceId`; other settings come from this repository. Authentication, trust, memory, sessions, and package caches are outside its copy scope.
-
-Package declarations are installed with native `pi install` or reconciled with `pi update --extensions` separately. Record additions in `agent/settings.json`, not only in runtime settings. Deployment does not install packages.
-
-The native `~/.agents` worktree shares Git history with `~/pi/repos/agent-setup`. After reviewing and committing that fork, advance the worktree to the local commit, not directly to upstream:
-
-```bash
-git -C ~/.agents checkout --detach "$(git -C ~/pi/repos/agent-setup rev-parse HEAD)"
 cd ~/.agents
 uv sync --locked
 uv run skillctl sync
 ```
 
-Do not force checkout over native worktree edits. Use the upstream test commands in a development environment when changing upstream code; there is no custom test runner or blanket test-green gate here.
+The additional detached checkout under `~/pi/repos/agent-setup/` only retains the shared Git metadata and a secondary worktree. It is not a configuration source or deployment target. Do not edit it to configure the running Skills, or delete it without accounting for the linked worktree's Git metadata.
+
+## Runtime and program updates
+
+The shared WSL Node/npm/Codex/Biome/Corepack toolchain lives at `~/.local/opt/node/`, independently of Pi. Official managed Pi lives in `agent/install/`; its generated launcher is `agent/bin/pi`. The small `~/pi/bin/pi` entry delegates to tracked `scripts/pi`, preserving the shared Linux PATH and `PI_CODING_AGENT_DIR=$HOME/pi/agent`.
+
+```bash
+~/pi/bin/pi
+~/pi/bin/pi update                    # native Pi program update
+~/pi/bin/pi update --extensions       # native package update
+~/pi/bin/verify-pi.sh                 # read-only startup/auth-permission check
+```
+
+There is no custom Pi updater, configuration deployment script, or bulk upstream-update helper. Installed binaries, official update metadata, machine-local entries in `bin/`, and recovery data in `backups/` are not committed. The tracked scripts are only the necessary launcher and minimal runtime checker.
+
+For a future official reinstall, inspect the official installer, put its launcher ahead of the local wrapper, and keep the configuration directory:
+
+```bash
+curl -fsSL https://pi.dev/install.sh -o /tmp/pi-install.sh
+PATH="$HOME/.local/opt/node/bin:$HOME/pi/agent/bin:/usr/local/bin:/usr/bin:/bin" \
+  PI_CODING_AGENT_DIR="$HOME/pi/agent" sh /tmp/pi-install.sh
+```
+
+## Git and upstream changes
+
+```bash
+lazygit -p ~/pi
+lazygit -p ~/.agents
+```
+
+Fetch `upstream`, inspect changes, and merge `upstream/main` using ordinary Git or Lazygit in each running worktree. Review existing local edits first. Resolve conflicts explicitly; do not copy upstream files over local choices, force-reset, or automatically commit/push. A reviewed merge changes the actual running configuration, so reload Pi when appropriate. Program updates and Skill/package synchronization remain separate native operations.

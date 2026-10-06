@@ -12,5 +12,4 @@ export PI_CODING_AGENT_DIR="$HOME/pi/agent"
 
 export PI_HARDWARE_CURSOR=1
 
-exec "$HOME/.local/opt/node/bin/node" --disable-warning=ExperimentalWarning \
-  "$HOME/pi/app/node_modules/@earendil-works/pi-coding-agent/dist/cli.js" "$@"
+exec "$HOME/pi/agent/bin/pi" "$@"

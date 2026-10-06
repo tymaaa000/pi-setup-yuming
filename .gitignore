@@ -1,3 +1,18 @@
+# Machine-local state outside the tracked configuration
+/bin/
+/repos/
+/backups/
+/.npm/
+/.npmrc
+/agent/bin/
+/agent/install/
+/agent/AGENTS.md
+/agent/crashes.json
+/agent/mcp-cache.json
+/agent/mcp-onboarding.json
+.env
+.env.*
+
 # Secrets
 agent/auth.json
 agent/trust.json

@@ -1,5 +1,9 @@
 # AGENTS.md
 
+## Live repository layout
+
+This checkout is also the live Pi runtime. Edit configuration directly in `agent/`; there is no separate source checkout or deployment script. Skills are configured directly in the `~/.agents` Git worktree. Review `.gitignore` and private-file exclusions before staging. Never commit authentication, sessions, memory, installed releases/packages, or recovery data. Preserve existing local changes and Git history; no automatic commits or pushes.
+
 ## Biome Workflow
 
 We use Biome for formatting, linting, and import sorting.
