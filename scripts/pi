@@ -1,0 +1,16 @@
+#!/bin/sh
+# ~/pi/bin/pi — Linux-native Pi launcher
+#
+# Prepends two directories to PATH so child processes resolve the Linux toolchain:
+#   1) ~/pi/bin      — bare `pi` invocations inside extensions hit this launcher
+#   2) ~/.local/opt/node/bin — npm and `#!/usr/bin/env node` scripts hit the Linux Node
+# Keep Linux tools first, but expose WSL's Windows launchers to upstream packages.
+export PATH="$HOME/pi/bin:$HOME/.local/opt/node/bin:$PATH:/mnt/c/Windows/System32:/mnt/c/Windows/System32/WindowsPowerShell/v1.0"
+
+# Pin the configuration directory; never inherit the Windows PI_CODING_AGENT_DIR.
+export PI_CODING_AGENT_DIR="$HOME/pi/agent"
+
+export PI_HARDWARE_CURSOR=1
+
+exec "$HOME/.local/opt/node/bin/node" --disable-warning=ExperimentalWarning \
+  "$HOME/pi/app/node_modules/@earendil-works/pi-coding-agent/dist/cli.js" "$@"

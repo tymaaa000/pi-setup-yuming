@@ -8,9 +8,17 @@ Upstream: `aqua2k1/pi-setup`. This fork keeps the same declarative configuration
 - `agent/models.json`, `agent/pi-kits.json`, `agent/keybindings.json`: reviewed configuration deployed to the runtime.
 - `agent/extensions/`, `agent/agents/`, `agent/prompts/`, `agent/APPEND_SYSTEM.md`: source-owned resources.
 - Skills use the separate `agent-setup` fork and its `config.toml`; `grilling` is an explicit local choice.
-- `scripts/`: the small local fetch and deployment scripts needed by this machine. Runtime `~/pi/bin` entries delegate to these tracked implementations.
+- `scripts/`: the local Pi launcher, Pi updater/checker, and configuration fetch/deployment scripts needed by this machine. Runtime `~/pi/bin` entries delegate to these tracked implementations.
 
 Authentication, private state, sessions, memory, installed packages, CUDA, and model/index caches are not configuration source files. Never commit credentials or copy a whole runtime directory into this repository.
+
+## Shared Linux toolchain
+
+Node and its global tools live independently of Pi in `~/.local/opt/node/`. Add `~/.local/opt/node/bin` and `~/pi/bin` to your shell PATH. The tracked Pi launcher selects this Linux Node explicitly; the updater also selects its npm and prepends the shared toolchain to PATH. No Windows Node or Codex binary is used.
+
+Current tool versions are Node `24.21.0`, npm `11.19.0`, Corepack `0.36.0`, Biome `2.5.14`, and Codex CLI `0.160.0`. Codex's version is constrained by the installed pi-kits native-review protocol, not by where the CLI is installed. Installed binaries and authentication are not committed here. Toolchain upgrades remain separate from `update-pi.sh`, which only upgrades Pi.
+
+The relocation is complete: `~/pi/node` no longer exists. The shared toolchain is not a Pi-owned installation or a deployment output.
 
 ## Follow upstream
 
